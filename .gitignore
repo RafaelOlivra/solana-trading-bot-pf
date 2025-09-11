@@ -137,3 +137,7 @@ pnpm-lock.yaml
 
 # Visual Studio Code 
 *.code-workspace
+
+# Temporary folders
+tmp/
+temp/
