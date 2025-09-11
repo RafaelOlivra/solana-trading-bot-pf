@@ -8,10 +8,10 @@ import { wrapSolToWSOL } from './devnet-wsol-wrapper';
 import fs from 'fs';
 import bs58 from 'bs58';
 
-import { DEVNET_COMMITMENT_LEVEL, DEVNET_RPC_ENDPOINT, DEVNET_RPC_ENDPOINT } from '../helpers';
+import { DEVNET_COMMITMENT_LEVEL, DEVNET_RPC_ENDPOINT, DEVNET_RPC_WEBSOCKET_ENDPOINT } from '../helpers';
 
 const connection = new Connection(DEVNET_RPC_ENDPOINT, {
-  wsEndpoint: DEVNET_RPC_ENDPOINT,
+  wsEndpoint: DEVNET_RPC_WEBSOCKET_ENDPOINT,
   commitment: DEVNET_COMMITMENT_LEVEL,
 });
 
