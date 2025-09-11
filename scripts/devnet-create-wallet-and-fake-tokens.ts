@@ -8,11 +8,11 @@ import { wrapSolToWSOL } from './devnet-wsol-wrapper';
 import fs from 'fs';
 import bs58 from 'bs58';
 
-import { COMMITMENT_LEVEL, RPC_ENDPOINT, RPC_WEBSOCKET_ENDPOINT } from '../helpers';
+import { DEVNET_COMMITMENT_LEVEL, DEVNET_RPC_ENDPOINT, DEVNET_RPC_ENDPOINT } from '../helpers';
 
-const connection = new Connection(RPC_ENDPOINT, {
-  wsEndpoint: RPC_WEBSOCKET_ENDPOINT,
-  commitment: COMMITMENT_LEVEL,
+const connection = new Connection(DEVNET_RPC_ENDPOINT, {
+  wsEndpoint: DEVNET_RPC_ENDPOINT,
+  commitment: DEVNET_COMMITMENT_LEVEL,
 });
 
 // Path to the wallet file

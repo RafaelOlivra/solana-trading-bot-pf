@@ -64,3 +64,8 @@ export const MAX_POOL_SIZE = retrieveEnvVariable('MAX_POOL_SIZE', logger);
 export const USE_SNIPE_LIST = retrieveEnvVariable('USE_SNIPE_LIST', logger) === 'true';
 export const SNIPE_LIST_REFRESH_INTERVAL = Number(retrieveEnvVariable('SNIPE_LIST_REFRESH_INTERVAL', logger));
 export const CHECK_FROM_PUMP_FUN = retrieveEnvVariable('CHECK_FROM_PUMP_FUN', logger) === 'true';
+
+// Devnet (for testing)
+export const DEVNET_RPC_ENDPOINT = retrieveEnvVariable('DEVNET_RPC_ENDPOINT', logger);
+export const DEVNET_RPC_WEBSOCKET_ENDPOINT = retrieveEnvVariable('DEVNET_RPC_WEBSOCKET_ENDPOINT', logger);
+export const DEVNET_COMMITMENT_LEVEL: Commitment = retrieveEnvVariable('DEVNET_COMMITMENT_LEVEL', logger) as Commitment;
