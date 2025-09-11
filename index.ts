@@ -42,6 +42,7 @@ import {
   SNIPE_LIST_REFRESH_INTERVAL,
   TRANSACTION_EXECUTOR,
   CUSTOM_FEE,
+  CHECK_FROM_PUMP_FUN,
   FILTER_CHECK_INTERVAL,
   FILTER_CHECK_DURATION,
   CONSECUTIVE_FILTER_MATCHES,
@@ -128,6 +129,7 @@ function printDetails(wallet: Keypair, quoteToken: Token, bot: Bot) {
     logger.info(`Check renounced: ${botConfig.checkRenounced}`);
     logger.info(`Check freezable: ${botConfig.checkFreezable}`);
     logger.info(`Check burned: ${botConfig.checkBurned}`);
+    logger.info(`Check from Pump.fun: ${botConfig.checkFromPumpFun}`);
     logger.info(`Min pool size: ${botConfig.minPoolSize.toFixed()}`);
     logger.info(`Max pool size: ${botConfig.maxPoolSize.toFixed()}`);
   }
@@ -168,6 +170,7 @@ const runListener = async () => {
     checkRenounced: CHECK_IF_MINT_IS_RENOUNCED,
     checkFreezable: CHECK_IF_FREEZABLE,
     checkBurned: CHECK_IF_BURNED,
+    checkFromPumpFun: CHECK_FROM_PUMP_FUN,
     minPoolSize: new TokenAmount(quoteToken, MIN_POOL_SIZE, false),
     maxPoolSize: new TokenAmount(quoteToken, MAX_POOL_SIZE, false),
     quoteToken,

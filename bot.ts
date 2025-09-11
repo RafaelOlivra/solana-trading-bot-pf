@@ -29,6 +29,7 @@ export interface BotConfig {
   checkRenounced: boolean;
   checkFreezable: boolean;
   checkBurned: boolean;
+  checkFromPumpFun: boolean;
   minPoolSize: TokenAmount;
   maxPoolSize: TokenAmount;
   quoteToken: Token;
