@@ -1,9 +1,10 @@
-import { Connection, Keypair, PublicKey, clusterApiUrl } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, clusterApiUrl, sendAndConfirmTransaction, Transaction } from '@solana/web3.js';
 import { createMint, getAssociatedTokenAddress, createAssociatedTokenAccount, mintTo } from '@solana/spl-token';
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { keypairIdentity, generateSigner, signerIdentity } from '@metaplex-foundation/umi';
-import { fromWeb3JsKeypair, fromWeb3JsPublicKey } from '@metaplex-foundation/umi-web3js-adapters';
+import { fromWeb3JsKeypair, fromWeb3JsPublicKey, toWeb3JsPublicKey } from '@metaplex-foundation/umi-web3js-adapters';
 import { createMetadataAccountV3, findMetadataPda } from '@metaplex-foundation/mpl-token-metadata';
+import { wrapSolToWSOL } from './devnet-wsol-wrapper';
 import fs from 'fs';
 import bs58 from 'bs58';
 
@@ -37,11 +38,11 @@ function loadOrGenerateWallet() {
 }
 
 async function main() {
-  // 1️⃣ Setup wallet
+  // Setup wallet
   const walletKp = loadOrGenerateWallet();
   console.log('Wallet:', walletKp.publicKey.toBase58());
 
-  // 2️⃣ Airdrop 2 SOL if low balance
+  // Airdrop 2 SOL if low balance
   const balance = await connection.getBalance(walletKp.publicKey);
   console.log(`Current balance: ${balance / 1e9} SOL`);
 
@@ -57,7 +58,10 @@ async function main() {
     }
   }
 
-  // 3️⃣ Create a new mint (6 decimals)
+  // Wrap SOL into WSOL
+  // const wsolAta = await wrapSolToWSOL(connection, walletKp, 1);
+
+  // Create a new mint (6 decimals)
   console.log('🪙 Creating mint...');
   const mintAddress = await createMint(
     connection,
@@ -68,7 +72,7 @@ async function main() {
   );
   console.log('Created mint:', mintAddress.toBase58());
 
-  // 4️⃣ Create associated token account (ATA)
+  // Create associated token account (ATA)
   console.log('🏦 Creating ATA...');
   const ata = await getAssociatedTokenAddress(mintAddress, walletKp.publicKey);
 
@@ -80,7 +84,7 @@ async function main() {
   );
   console.log('Created ATA:', ata.toBase58());
 
-  // 5️⃣ Mint tokens into ATA
+  // Mint tokens into ATA
   console.log('🔨 Minting tokens...');
   await mintTo(
     connection,
@@ -92,7 +96,7 @@ async function main() {
   );
   console.log('Minted 1000 tokens');
 
-  // 6️⃣ Create metadata using UMI (Pump.fun style)
+  // Create metadata using UMI (Pump.fun style)
   console.log('📝 Creating metadata...');
 
   // Use keypairIdentity with the converted web3.js Keypair.
@@ -102,18 +106,18 @@ async function main() {
   const metadataPda = findMetadataPda(umi, { mint: mintUmiPublicKey });
 
   try {
-    const tx = createMetadataAccountV3(umi, {
+    const metadataBuilder = createMetadataAccountV3(umi, {
       metadata: metadataPda,
       mint: mintUmiPublicKey,
       mintAuthority: umi.identity,
       payer: umi.identity,
-      updateAuthority: umi.identity,
+      updateAuthority: fromWeb3JsPublicKey(walletKp.publicKey),
       data: {
         name: 'Devnet PumpFun Test',
         symbol: 'PUMPX',
-        uri: 'https://pump.fun/fake.json',
+        uri: 'https://raw.githubusercontent.com/RafaelOlivra/solana-trading-bot-pf/refs/heads/master/scripts/fake-metadata.json',
         sellerFeeBasisPoints: 0,
-        creators: [],
+        creators: [{ address: fromWeb3JsPublicKey(walletKp.publicKey), verified: true, share: 100 }],
         collection: null,
         uses: null,
       },
@@ -121,9 +125,17 @@ async function main() {
       collectionDetails: null,
     });
 
-    // The Umi TransactionBuilder now has a sendAndConfirm method
-    await tx.sendAndConfirm(umi);
-    console.log('✅ Metadata created at PDA:', metadataPda[0]);
+    const ix: any = metadataBuilder.getInstructions()[0];
+    ix.keys = ix.keys.map((key: any) => {
+      const newKey = { ...key };
+      newKey.pubkey = toWeb3JsPublicKey(key.pubkey);
+      return newKey;
+    });
+
+    const tx = new Transaction().add(ix);
+    const sig = await sendAndConfirmTransaction(connection, tx, [walletKp]);
+
+    console.log('✅ Metadata created:', metadataPda[0], sig);
   } catch (error) {
     console.log('❌ Metadata creation failed:', error);
     // Continue without metadata for now

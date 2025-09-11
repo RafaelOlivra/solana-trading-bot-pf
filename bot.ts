@@ -97,6 +97,7 @@ export class Bot {
       logger.error(
         `${this.config.quoteToken.symbol} token account not found in wallet: ${this.config.wallet.publicKey.toString()}`,
       );
+      logger.error(error);
       return false;
     }
 
