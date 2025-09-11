@@ -26,7 +26,8 @@ export class PumpFunFilter implements Filter {
       const [metadata] = this.metadataSerializer.deserialize(accountInfo.data);
 
       const isPumpFun =
-        metadata.uri.includes('pump.fun') ||
+        metadata.uri.includes('pump.fun') || // URI contains pump.fun
+        metadata.mint.endsWith('pump') || // Mint address ends with 'pump'
         metadata.updateAuthority.toString() === PUMP_FUN_UPDATE_AUTHORITY.toString();
 
       if (isPumpFun) {
