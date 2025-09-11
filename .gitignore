@@ -138,6 +138,9 @@ pnpm-lock.yaml
 # Visual Studio Code 
 *.code-workspace
 
+# Snipe list
+snipe-list.txt
+
 # Temporary folders
 tmp/
 temp/

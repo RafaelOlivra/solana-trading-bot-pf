@@ -50,6 +50,7 @@ import {
 import { version } from './package.json';
 import { WarpTransactionExecutor } from './transactions/warp-transaction-executor';
 import { JitoTransactionExecutor } from './transactions/jito-rpc-transaction-executor';
+import { log } from 'console';
 
 const connection = new Connection(RPC_ENDPOINT, {
   wsEndpoint: RPC_WEBSOCKET_ENDPOINT,
@@ -238,6 +239,11 @@ const runListener = async () => {
     if (accountData.mint.equals(quoteToken.mint)) {
       return;
     }
+
+    logger.info(`
+      🔔 Detected change in wallet for account: ${updatedAccountInfo.accountId.toString()}
+      💰 New balance: ${accountData.amount.toString()}
+      🪙 Token: ${accountData.mint.toString()}`);
 
     await bot.sell(updatedAccountInfo.accountId, accountData);
   });

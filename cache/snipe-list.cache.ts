@@ -7,6 +7,12 @@ export class SnipeListCache {
   private fileLocation = path.join(__dirname, '../snipe-list.txt');
 
   constructor() {
+    // If the file does not exist, create an empty one
+    if (!fs.existsSync(this.fileLocation)) {
+      fs.writeFileSync(this.fileLocation, '');
+      logger.info(`Created empty snipe list at ${this.fileLocation}`);
+    }
+
     setInterval(() => this.loadSnipeList(), SNIPE_LIST_REFRESH_INTERVAL);
   }
 

@@ -30,8 +30,6 @@ function loadOrGenerateWallet() {
   const kp = Keypair.generate();
   fs.writeFileSync(WALLET_FILE, JSON.stringify(Array.from(kp.secretKey)));
   console.log(`✅ Generated new wallet at ${WALLET_FILE}`);
-
-  console.log('⚠️ Private Key (as a string):', JSON.stringify(Array.from(kp.secretKey)));
   console.log('⚠️ Private Key (as Base58 string):', bs58.encode(kp.secretKey));
 
   return kp;
@@ -40,7 +38,8 @@ function loadOrGenerateWallet() {
 async function main() {
   // Setup wallet
   const walletKp = loadOrGenerateWallet();
-  console.log('Wallet:', walletKp.publicKey.toBase58());
+  console.log('Wallet Public Key:', walletKp.publicKey.toBase58());
+  console.log('Wallet Private Key:', bs58.encode(walletKp.secretKey));
 
   // Airdrop 2 SOL if low balance
   const balance = await connection.getBalance(walletKp.publicKey);
