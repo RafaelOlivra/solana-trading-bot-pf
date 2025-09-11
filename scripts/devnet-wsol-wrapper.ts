@@ -7,9 +7,9 @@ export async function wrapSolToWSOL(connection: Connection, wallet: Keypair, amo
   // This handles both ATA creation and SOL wrapping
   const wsolAta = await createWrappedNativeAccount(
     connection,
-    wallet,          // payer for transaction
+    wallet, // payer for transaction
     wallet.publicKey, // owner of the WSOL tokens
-    lamportsToWrap
+    lamportsToWrap,
   );
 
   console.log(`💧 Wrapped ${amountSOL} SOL into WSOL at ATA:`, wsolAta.toBase58());
