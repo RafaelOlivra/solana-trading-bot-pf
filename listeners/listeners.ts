@@ -101,7 +101,7 @@ export class Listeners extends EventEmitter {
   }
 
   private async subscribeToCpmmPools(config: { quoteToken: Token }) {
-    logger.info('🔔 Subscribing to CPMM pools (Devnet only)...');
+    logger.info('Subscribing to CPMM pools (Devnet only)...');
 
     return this.connection.onProgramAccountChange(
       DEVNET_PROGRAM_ID_V2.CREATE_CPMM_POOL_PROGRAM,

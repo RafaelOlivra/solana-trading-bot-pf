@@ -226,7 +226,10 @@ const runListener = async () => {
   listeners.on('market', (updatedAccountInfo: KeyedAccountInfo) => {
     const marketState = MARKET_STATE_LAYOUT_V3.decode(updatedAccountInfo.accountInfo.data);
     marketCache.save(updatedAccountInfo.accountId.toString(), marketState);
-    logger.info(`🆕 New market detected: ${updatedAccountInfo.accountId.toString()}`);
+
+    if (NETWORK === 'devnet') {
+      logger.info(`🆕 New market detected: ${updatedAccountInfo.accountId.toString()}`);
+    }
   });
 
   listeners.on('pool', async (updatedAccountInfo: KeyedAccountInfo) => {
@@ -252,7 +255,9 @@ const runListener = async () => {
     const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
     const exists = await poolCache.get(poolState.baseMint.toString());
 
-    logger.info(`🔔 Detected change in pool: ${updatedAccountInfo.accountId.toString()}`);
+    if (NETWORK === 'devnet') {
+      logger.info(`Detected change in pool: ${updatedAccountInfo.accountId.toString()}`);
+    }
 
     if (!exists && poolOpenTime > runTimestamp) {
       poolCache.save(accountId, poolState);
@@ -267,10 +272,12 @@ const runListener = async () => {
       return;
     }
 
-    logger.info(`
+    if (NETWORK === 'devnet') {
+      logger.info(`
       🔔 Detected change in wallet for account: ${updatedAccountInfo.accountId.toString()}
       💰 New balance: ${accountData.amount.toString()}
       🪙 Token: ${accountData.mint.toString()}`);
+    }
 
     await bot.sell(updatedAccountInfo.accountId, accountData);
   });
