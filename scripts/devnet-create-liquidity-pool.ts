@@ -60,7 +60,7 @@ export async function createLiquidityPool(
   console.log('Fee Config:', myFeeConfig);
 
   // build tx (params follow demo API)
-  const { transaction, signers } = await raydium.cpmm.createPool({
+  const poolInfo = await raydium.cpmm.createPool({
     programId: DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_PROGRAM,
     poolFeeAccount: DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_FEE_ACC,
     mintA,
@@ -73,6 +73,11 @@ export async function createLiquidityPool(
     txVersion: 1,
     feeConfig: myFeeConfig,
   });
+  const { transaction, signers, extInfo } = poolInfo;
+  const poolData = extInfo.address;
+  const poolAddress = poolData.poolId;
+
+  console.log('Creating liquidity pool...');
 
   // send
   const result = await sendAndConfirmTransaction(connection, transaction, [walletKp, ...(signers || [])], {
@@ -80,5 +85,8 @@ export async function createLiquidityPool(
   });
 
   console.log('✅ Liquidity pool created. Transaction ID:', result);
+  console.log('💧 Pool ID (Address):', poolData.poolId.toString());
+  console.log('💧 Pool Config ID:', poolData.configId.toString());
+
   return result;
 }

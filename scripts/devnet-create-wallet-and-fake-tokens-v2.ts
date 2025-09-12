@@ -9,10 +9,9 @@ import {
 } from '@solana/web3.js';
 import { createMint, getAssociatedTokenAddress, createAssociatedTokenAccount, mintTo } from '@solana/spl-token';
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
-import { keypairIdentity, generateSigner, signerIdentity } from '@metaplex-foundation/umi';
+import { keypairIdentity } from '@metaplex-foundation/umi';
 import { fromWeb3JsKeypair, fromWeb3JsPublicKey, toWeb3JsPublicKey } from '@metaplex-foundation/umi-web3js-adapters';
 import { createMetadataAccountV3, findMetadataPda } from '@metaplex-foundation/mpl-token-metadata';
-import { DEVNET_PROGRAM_ID } from '@raydium-io/raydium-sdk-v2';
 import { createLiquidityPool } from './devnet-create-liquidity-pool';
 import fs from 'fs';
 import bs58 from 'bs58';
@@ -26,7 +25,6 @@ const connection = new Connection(DEVNET_RPC_ENDPOINT, {
 
 // Path to the wallet file
 const WALLET_FILE = './tmp/devnet-wallet.json';
-let CREATE_NEW_TOKEN = false;
 
 /**
  * Loads a wallet from a file or generates a new one.
@@ -65,6 +63,9 @@ async function main() {
   // Accept user input to create a new token or not
   console.log('--- Devnet Wallet and Token Creator ---');
 
+  let mintAddress: PublicKey | null = null;
+  let decimals = 6;
+
   // Setup wallet
   const walletKp = loadOrGenerateWallet();
   console.log('Wallet Public Key:', walletKp.publicKey.toBase58());
@@ -88,48 +89,13 @@ async function main() {
 
   // Ask user if they want to create a new token
   const answer = await promptUser(`Do you want to create a new SPL token? (y/n) [default: y]`);
-
   if (answer === 'y' || answer === 'yes' || answer === '') {
-    CREATE_NEW_TOKEN = true;
-  }
-
-  if (answer === 'n' || answer === 'no') {
-    // Ask if the user wants to create a new LP
-    const lpAnswer = await promptUser(
-      `Do you want to create a new liquidity pool for an existing token? (y/n) [default: n]`,
-    );
-    if (lpAnswer === 'y' || lpAnswer === 'yes') {
-      CREATE_NEW_TOKEN = false;
-
-      // Proceed to create liquidity pool only
-      console.log('Proceeding to create liquidity pool only.');
-
-      // Ask the user for the existing token mint address
-      const mintAddressInput = await promptUser(`Enter the existing token mint address:`);
-      let mintAddress: PublicKey;
-      try {
-        mintAddress = new PublicKey(mintAddressInput);
-      } catch (error) {
-        console.error('Invalid mint address. Exiting.');
-        return;
-      }
-
-      // Create liquidity pool with 6 decimals (common case)
-      await createLiquidityPool(connection, walletKp, mintAddress, 6);
-      return;
-    } else {
-      console.log('Exiting without creating anything.');
-      return;
-    }
-  }
-
-  if (CREATE_NEW_TOKEN) {
     // --- Step 1: Create SPL Token ---
     console.log('\n🪙 Creating SPL token...');
     const mintAuthority = walletKp;
     const freezeAuthority = walletKp;
-    const decimals = 6;
-    const mintAddress = await createMint(
+    decimals = 6;
+    mintAddress = await createMint(
       connection,
       walletKp, // payer
       mintAuthority.publicKey, // mint authority
@@ -177,7 +143,7 @@ async function main() {
         data: {
           name: 'Devnet PumpFun Test Token',
           symbol: 'PUMPX',
-          uri: 'https://raw.githubusercontent.com/RafaelOlivra/solana-trading-bot-pf/refs/heads/master/scripts/fake-metadata.json',
+          uri: 'https://raw.githubusercontent.com/RafaelOlivra/solana-trading-bot-pf/refs/heads/master/scripts/fake-metadata.json?pump',
           sellerFeeBasisPoints: 0,
           creators: [{ address: fromWeb3JsPublicKey(walletKp.publicKey), verified: false, share: 100 }],
           collection: null,
@@ -206,9 +172,33 @@ async function main() {
     console.log('\n🎉 Coin creation complete!');
     console.log(`Mint Address: ${mintAddress.toBase58()}`);
     console.log(`Token Account: ${tokenAccount.toBase58()}`);
+  }
 
-    // --- Step 2: Create a Raydium Liquidity Pool ---
+  // Ask if the user wants to create a new LP
+  const lpAnswer = await promptUser(
+    `Do you want to create a new liquidity pool for an existing token? (y/n) [default: n]`,
+  );
+  if (lpAnswer === 'y' || lpAnswer === 'yes') {
+    // Proceed to create liquidity pool only
+    console.log('Proceeding to create liquidity pool only.');
+
+    // Ask the user for the existing token mint address
+    if (!mintAddress) {
+      const mintAddressInput = await promptUser(`Enter the existing token mint address:`);
+      try {
+        mintAddress = new PublicKey(mintAddressInput);
+      } catch (error) {
+        console.error('Invalid mint address. Exiting.');
+        return;
+      }
+    }
+
+    // Create liquidity pool
     await createLiquidityPool(connection, walletKp, mintAddress, decimals);
+    return;
+  } else {
+    console.log('Exiting without creating anything.');
+    return;
   }
 }
 
