@@ -1,6 +1,6 @@
 import { MarketCache, PoolCache } from './cache';
 import { Listeners } from './listeners';
-import { Connection, KeyedAccountInfo, Keypair } from '@solana/web3.js';
+import { Connection, KeyedAccountInfo, Keypair, PublicKey } from '@solana/web3.js';
 import { LIQUIDITY_STATE_LAYOUT_V4, MARKET_STATE_LAYOUT_V3, Token, TokenAmount } from '@raydium-io/raydium-sdk';
 import { AccountLayout, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { Bot, BotConfig } from './bot';
@@ -235,17 +235,17 @@ const runListener = async () => {
 
   listeners.on('pool', async (updatedAccountInfo: KeyedAccountInfo) => {
     let poolState;
-    let accountId;
+    let accountId: PublicKey;
 
     // let typePoolState =  LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
 
     try {
       poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
-      accountId = updatedAccountInfo.accountId.toString();
+      accountId = updatedAccountInfo.accountId;
     } catch (error) {
       // We may be dealing with custom CPMM pool, so data is already decoded in that case
       poolState = updatedAccountInfo as any;
-      accountId = poolState.accountId.toString();
+      accountId = poolState.accountId;
     }
 
     // Ignore if pool doesn't have both mints defined
@@ -270,7 +270,7 @@ const runListener = async () => {
 
     if (!exists && poolOpenTime > runTimestamp) {
       logger.info(`🆕 New pool processed: ${updatedAccountInfo.accountId.toString()}`);
-      poolCache.save(accountId, poolState);
+      poolCache.save(accountId.toString(), poolState);
       await bot.buy(accountId, poolState);
     }
   });

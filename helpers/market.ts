@@ -18,5 +18,11 @@ export async function getMinimalMarketV3(
     },
   });
 
-  return MINIMAL_MARKET_STATE_LAYOUT_V3.decode(marketInfo!.data);
+  if (!marketInfo) {
+    console.error(`Market account ${marketId.toBase58()} not found.`);
+    throw new Error('Market account not found');
+  }
+
+  const decodedMarketInfo = MINIMAL_MARKET_STATE_LAYOUT_V3.decode(marketInfo.data);
+  return decodedMarketInfo;
 }

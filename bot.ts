@@ -137,6 +137,7 @@ export class Bot {
           this.marketStorage.get(poolState.marketId.toString()),
           getAssociatedTokenAddress(poolState.baseMint, this.config.wallet.publicKey),
         ]);
+
         const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(accountId, poolState, market);
 
         if (!this.config.useSnipeList) {
@@ -161,7 +162,10 @@ export class Bot {
               { mint: poolState.baseMint.toString() },
               `Send buy transaction attempt: ${i + 1}/${this.config.maxBuyRetries}`,
             );
+
+            // Try to see some common errors before buying
             const tokenOut = new Token(TOKEN_PROGRAM_ID, poolKeys.baseMint, poolKeys.baseDecimals);
+
             const result = await this.swap(
               poolKeys,
               this.config.quoteAta,
@@ -173,6 +177,11 @@ export class Bot {
               this.config.wallet,
               'buy',
             );
+
+            if (!result) {
+              logger.warn({ mint: poolState.baseMint.toString() }, `Swap returned empty result, skipping`);
+              break;
+            }
 
             if (result.confirmed) {
               logger.info(
@@ -270,6 +279,11 @@ export class Bot {
             'sell',
           );
 
+          if (!result) {
+            logger.warn({ mint: rawAccount.mint.toString() }, `Swap returned empty result, skipping`);
+            break;
+          }
+
           if (result.confirmed) {
             logger.info(
               {
@@ -317,10 +331,16 @@ export class Bot {
     direction: 'buy' | 'sell',
   ) {
     const slippagePercent = new Percent(slippage, 100);
+
     const poolInfo = await Liquidity.fetchInfo({
       connection: this.connection,
       poolKeys,
     });
+
+    if (amountIn.isZero() || amountIn.raw.lte(new BN(0))) {
+      logger.warn('AmountIn is zero, skipping swap');
+      return;
+    }
 
     const computedAmountOut = Liquidity.computeAmountOut({
       poolKeys,
@@ -331,6 +351,7 @@ export class Bot {
     });
 
     const latestBlockhash = await this.connection.getLatestBlockhash();
+
     const { innerTransaction } = Liquidity.makeSwapFixedInInstruction(
       {
         poolKeys: poolKeys,
