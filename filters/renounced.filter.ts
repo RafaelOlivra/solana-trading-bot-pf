@@ -25,7 +25,7 @@ export class RenouncedFreezeFilter implements Filter {
     try {
       const accountInfo = await this.connection.getAccountInfo(poolKeys.baseMint, this.connection.commitment);
       if (!accountInfo?.data) {
-        return { ok: false, message: 'RenouncedFreeze -> Failed to fetch account data' };
+        return { ok: false, message: 'MintRenouncedFreeze -> Failed to fetch account data' };
       }
 
       const deserialize = MintLayout.decode(accountInfo.data);
@@ -42,17 +42,17 @@ export class RenouncedFreezeFilter implements Filter {
         message.push('freeze');
       }
 
-      return { ok: ok, message: ok ? undefined : `RenouncedFreeze -> Creator can ${message.join(' and ')} tokens` };
+      return { ok: ok, message: ok ? undefined : `MintRenouncedFreeze -> Creator can ${message.join(' and ')} tokens` };
     } catch (e) {
       logger.error(
         { mint: poolKeys.baseMint },
-        `RenouncedFreeze -> Failed to check if creator can ${this.errorMessage.join(' and ')} tokens`,
+        `MintRenouncedFreeze -> Failed to check if creator can ${this.errorMessage.join(' and ')} tokens`,
       );
     }
 
     return {
       ok: false,
-      message: `RenouncedFreeze -> Failed to check if creator can ${this.errorMessage.join(' and ')} tokens`,
+      message: `MintRenouncedFreeze -> Failed to check if creator can ${this.errorMessage.join(' and ')} tokens`,
     };
   }
 }

@@ -213,7 +213,8 @@ const runListener = async () => {
     await marketCache.init({ quoteToken });
   }
 
-  const runTimestamp = Math.floor(new Date().getTime() / 1000);
+  const timeStampAdjustment = 3600 * 4 * 24; // 4 hours ago to accomodate for time differences
+  const runTimestamp = Math.floor(new Date().getTime() / 1000) - timeStampAdjustment;
   const listeners = new Listeners(connection);
   await listeners.start({
     walletPublicKey: wallet.publicKey,
@@ -259,7 +260,16 @@ const runListener = async () => {
       logger.info(`Detected change in pool: ${updatedAccountInfo.accountId.toString()}`);
     }
 
+    // logger.info(`🆕 New pool detected: ${updatedAccountInfo.accountId.toString()}
+    // | poolOpenTime: ${poolOpenTime}
+    // | runTimestamp: ${runTimestamp}
+    // | Not in cache: ${!exists}
+    // | Pass time check: ${poolOpenTime > runTimestamp}
+    // | Buy check: ${!exists && poolOpenTime > runTimestamp}
+    // `);
+
     if (!exists && poolOpenTime > runTimestamp) {
+      logger.info(`🆕 New pool processed: ${updatedAccountInfo.accountId.toString()}`);
       poolCache.save(accountId, poolState);
       await bot.buy(accountId, poolState);
     }

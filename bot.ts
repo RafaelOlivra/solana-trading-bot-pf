@@ -144,6 +144,13 @@ export class Bot {
 
           if (!match) {
             logger.trace({ mint: poolKeys.baseMint.toString() }, `Skipping buy because pool doesn't match filters`);
+            if (this.config.oneTokenAtATime) {
+              logger.debug(
+                { mint: poolKeys.baseMint.toString() },
+                `Releasing mutex because pool doesn't match filters`,
+              );
+              this.mutex.release();
+            }
             return;
           }
         }
@@ -198,11 +205,15 @@ export class Bot {
         if (this.config.oneTokenAtATime) {
           this.mutex.release();
         }
+        return;
       }
     }
     // We got a CPMM pool without market id
     else {
       logger.debug({ mint: poolState.baseMint.toString() }, `Skipping buy because pool has no market (CPMM)`);
+      if (this.config.oneTokenAtATime) {
+        this.mutex.release();
+      }
       return;
     }
   }
@@ -395,6 +406,7 @@ export class Bot {
         await sleep(this.config.filterCheckInterval);
       } finally {
         timesChecked++;
+        logger.trace(`Filters checked ${timesChecked}/${timesToCheck} - Match count ${matchCount}`);
       }
     } while (timesChecked < timesToCheck);
 
