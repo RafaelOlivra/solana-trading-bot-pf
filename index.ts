@@ -10,6 +10,7 @@ import {
   getWallet,
   logger,
   COMMITMENT_LEVEL,
+  NETWORK,
   RPC_ENDPOINT,
   RPC_WEBSOCKET_ENDPOINT,
   PRE_LOAD_EXISTING_MARKETS,
@@ -80,6 +81,10 @@ function printDetails(wallet: Keypair, quoteToken: Token, bot: Bot) {
 
   logger.info('------- CONFIGURATION START -------');
   logger.info(`Wallet: ${wallet.publicKey.toString()}`);
+  logger.info(`Network: ${NETWORK}`);
+  logger.info(`RPC endpoint: ${RPC_ENDPOINT}`);
+  logger.info(`WebSocket RPC endpoint: ${RPC_WEBSOCKET_ENDPOINT}`);
+  logger.info(`Commitment level: ${COMMITMENT_LEVEL}`);
 
   logger.info('- Bot -');
 
@@ -215,21 +220,43 @@ const runListener = async () => {
     quoteToken,
     autoSell: AUTO_SELL,
     cacheNewMarkets: CACHE_NEW_MARKETS,
+    network: NETWORK,
   });
 
   listeners.on('market', (updatedAccountInfo: KeyedAccountInfo) => {
     const marketState = MARKET_STATE_LAYOUT_V3.decode(updatedAccountInfo.accountInfo.data);
     marketCache.save(updatedAccountInfo.accountId.toString(), marketState);
+    logger.info(`🆕 New market detected: ${updatedAccountInfo.accountId.toString()}`);
   });
 
   listeners.on('pool', async (updatedAccountInfo: KeyedAccountInfo) => {
-    const poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
+    let poolState;
+    let accountId;
+
+    // let typePoolState =  LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
+
+    try {
+      poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
+      accountId = updatedAccountInfo.accountId.toString();
+    } catch (error) {
+      // We may be dealing with custom CPMM pool, so data is already decoded in that case
+      poolState = updatedAccountInfo as any;
+      accountId = poolState.accountId.toString();
+    }
+
+    // Ignore if pool doesn't have both mints defined
+    if (!poolState?.baseMint || !poolState?.quoteMint) {
+      return;
+    }
+
     const poolOpenTime = parseInt(poolState.poolOpenTime.toString());
     const exists = await poolCache.get(poolState.baseMint.toString());
 
+    logger.info(`🔔 Detected change in pool: ${updatedAccountInfo.accountId.toString()}`);
+
     if (!exists && poolOpenTime > runTimestamp) {
-      poolCache.save(updatedAccountInfo.accountId.toString(), poolState);
-      await bot.buy(updatedAccountInfo.accountId, poolState);
+      poolCache.save(accountId, poolState);
+      await bot.buy(accountId, poolState);
     }
   });
 

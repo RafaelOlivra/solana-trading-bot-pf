@@ -18,7 +18,7 @@ const retrieveEnvVariable = (variableName: string, logger: Logger) => {
 export const PRIVATE_KEY = retrieveEnvVariable('PRIVATE_KEY', logger);
 
 // Connection
-export const NETWORK = 'mainnet-beta';
+export const NETWORK = retrieveEnvVariable('NETWORK', logger) === 'devnet' ? 'devnet' : 'mainnet-beta';
 export const COMMITMENT_LEVEL: Commitment = retrieveEnvVariable('COMMITMENT_LEVEL', logger) as Commitment;
 export const RPC_ENDPOINT = retrieveEnvVariable('RPC_ENDPOINT', logger);
 export const RPC_WEBSOCKET_ENDPOINT = retrieveEnvVariable('RPC_WEBSOCKET_ENDPOINT', logger);

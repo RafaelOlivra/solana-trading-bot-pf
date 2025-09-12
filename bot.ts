@@ -15,6 +15,7 @@ import {
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
 import { Liquidity, LiquidityPoolKeysV4, LiquidityStateV4, Percent, Token, TokenAmount } from '@raydium-io/raydium-sdk';
+import { Raydium } from '@raydium-io/raydium-sdk-v2';
 import { MarketCache, PoolCache, SnipeListCache } from './cache';
 import { PoolFilters } from './filters';
 import { TransactionExecutor } from './transactions';
@@ -129,72 +130,80 @@ export class Bot {
       await this.mutex.acquire();
     }
 
-    try {
-      const [market, mintAta] = await Promise.all([
-        this.marketStorage.get(poolState.marketId.toString()),
-        getAssociatedTokenAddress(poolState.baseMint, this.config.wallet.publicKey),
-      ]);
-      const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(accountId, poolState, market);
+    // Buy only if market exists
+    if (poolState.marketId) {
+      try {
+        const [market, mintAta] = await Promise.all([
+          this.marketStorage.get(poolState.marketId.toString()),
+          getAssociatedTokenAddress(poolState.baseMint, this.config.wallet.publicKey),
+        ]);
+        const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(accountId, poolState, market);
 
-      if (!this.config.useSnipeList) {
-        const match = await this.filterMatch(poolKeys);
+        if (!this.config.useSnipeList) {
+          const match = await this.filterMatch(poolKeys);
 
-        if (!match) {
-          logger.trace({ mint: poolKeys.baseMint.toString() }, `Skipping buy because pool doesn't match filters`);
-          return;
+          if (!match) {
+            logger.trace({ mint: poolKeys.baseMint.toString() }, `Skipping buy because pool doesn't match filters`);
+            return;
+          }
         }
-      }
 
-      for (let i = 0; i < this.config.maxBuyRetries; i++) {
-        try {
-          logger.info(
-            { mint: poolState.baseMint.toString() },
-            `Send buy transaction attempt: ${i + 1}/${this.config.maxBuyRetries}`,
-          );
-          const tokenOut = new Token(TOKEN_PROGRAM_ID, poolKeys.baseMint, poolKeys.baseDecimals);
-          const result = await this.swap(
-            poolKeys,
-            this.config.quoteAta,
-            mintAta,
-            this.config.quoteToken,
-            tokenOut,
-            this.config.quoteAmount,
-            this.config.buySlippage,
-            this.config.wallet,
-            'buy',
-          );
+        for (let i = 0; i < this.config.maxBuyRetries; i++) {
+          try {
+            logger.info(
+              { mint: poolState.baseMint.toString() },
+              `Send buy transaction attempt: ${i + 1}/${this.config.maxBuyRetries}`,
+            );
+            const tokenOut = new Token(TOKEN_PROGRAM_ID, poolKeys.baseMint, poolKeys.baseDecimals);
+            const result = await this.swap(
+              poolKeys,
+              this.config.quoteAta,
+              mintAta,
+              this.config.quoteToken,
+              tokenOut,
+              this.config.quoteAmount,
+              this.config.buySlippage,
+              this.config.wallet,
+              'buy',
+            );
 
-          if (result.confirmed) {
+            if (result.confirmed) {
+              logger.info(
+                {
+                  mint: poolState.baseMint.toString(),
+                  signature: result.signature,
+                  url: `https://solscan.io/tx/${result.signature}?cluster=${NETWORK}`,
+                },
+                `Confirmed buy tx`,
+              );
+
+              break;
+            }
+
             logger.info(
               {
                 mint: poolState.baseMint.toString(),
                 signature: result.signature,
-                url: `https://solscan.io/tx/${result.signature}?cluster=${NETWORK}`,
+                error: result.error,
               },
-              `Confirmed buy tx`,
+              `Error confirming buy tx`,
             );
-
-            break;
+          } catch (error) {
+            logger.debug({ mint: poolState.baseMint.toString(), error }, `Error confirming buy transaction`);
           }
-
-          logger.info(
-            {
-              mint: poolState.baseMint.toString(),
-              signature: result.signature,
-              error: result.error,
-            },
-            `Error confirming buy tx`,
-          );
-        } catch (error) {
-          logger.debug({ mint: poolState.baseMint.toString(), error }, `Error confirming buy transaction`);
+        }
+      } catch (error) {
+        logger.error({ mint: poolState.baseMint.toString(), error }, `Failed to buy token`);
+      } finally {
+        if (this.config.oneTokenAtATime) {
+          this.mutex.release();
         }
       }
-    } catch (error) {
-      logger.error({ mint: poolState.baseMint.toString(), error }, `Failed to buy token`);
-    } finally {
-      if (this.config.oneTokenAtATime) {
-        this.mutex.release();
-      }
+    }
+    // We got a CPMM pool without market id
+    else {
+      logger.debug({ mint: poolState.baseMint.toString() }, `Skipping buy because pool has no market (CPMM)`);
+      return;
     }
   }
 

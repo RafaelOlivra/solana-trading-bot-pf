@@ -1,11 +1,8 @@
 import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { NATIVE_MINT, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { wrapSolToWSOL } from './devnet-wsol-wrapper-v2';
-import { DEVNET_PROGRAM_ID, getCpmmPdaAmmConfigId, getAssociatedPoolKeys } from '@raydium-io/raydium-sdk-v2';
+import { Raydium, DEVNET_PROGRAM_ID, getCpmmPdaAmmConfigId, getAssociatedPoolKeys } from '@raydium-io/raydium-sdk-v2';
 import BN from 'bn.js';
-
-import { Raydium, CREATE_CPMM_POOL_PROGRAM, CREATE_CPMM_POOL_FEE_ACC } from '@raydium-io/raydium-sdk-v2';
-
 /**
  * Creates a Raydium liquidity pool on Devnet.
  *
@@ -32,15 +29,16 @@ export async function createLiquidityPool(
     cluster: 'devnet',
   });
 
-  // prepare mints (example: WSOL + your token)
-  const mintA = {
+  // prepare mints (example: your token + WSOL)
+  const mintB = {
     address: NATIVE_MINT.toBase58(),
     decimals: 9,
     programId: TOKEN_PROGRAM_ID.toBase58(),
   }; // WSOL
-  const mintB = await raydium.token.getTokenInfo(mintAddress.toBase58());
-  const mintAAmount = new BN(0.1 * LAMPORTS_PER_SOL);
-  const mintBAmount = new BN(100 * 10 ** decimals);
+  const mintBAmount = new BN(0.1 * LAMPORTS_PER_SOL);
+
+  const mintA = await raydium.token.getTokenInfo(mintAddress.toBase58());
+  const mintAAmount = new BN(100 * 10 ** decimals);
 
   // 2. Fetch available fee configs
   const feeConfigs = await raydium.api.getCpmmConfigs();
@@ -75,18 +73,35 @@ export async function createLiquidityPool(
   });
   const { transaction, signers, extInfo } = poolInfo;
   const poolData = extInfo.address;
-  const poolAddress = poolData.poolId;
 
   console.log('Creating liquidity pool...');
 
   // send
-  const result = await sendAndConfirmTransaction(connection, transaction, [walletKp, ...(signers || [])], {
-    commitment: 'confirmed',
-  });
+  const transactionSignature = await sendAndConfirmTransaction(
+    connection,
+    transaction,
+    [walletKp, ...(signers || [])],
+    {
+      commitment: 'confirmed',
+    },
+  );
 
-  console.log('✅ Liquidity pool created. Transaction ID:', result);
+  console.log('✅ Liquidity pool created. Transaction ID:', transactionSignature);
   console.log('💧 Pool ID (Address):', poolData.poolId.toString());
   console.log('💧 Pool Config ID:', poolData.configId.toString());
 
-  return result;
+  // Listen to the transaction confirmation
+  connection.onSignature(
+    transactionSignature,
+    (notif, ctx) => {
+      if (notif.err) {
+        console.error('Pool creation tx failed:', notif.err);
+      } else {
+        console.log('✅ Pool creation confirmed in slot', ctx.slot);
+      }
+    },
+    'confirmed',
+  );
+
+  return transactionSignature;
 }
