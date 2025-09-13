@@ -78,7 +78,7 @@ async function main() {
   if (balance < 1.5 * LAMPORTS_PER_SOL) {
     console.log('💸 Requesting airdrop...');
     try {
-      const sig = await connection.requestAirdrop(walletKp.publicKey, 2e9);
+      const sig = await connection.requestAirdrop(walletKp.publicKey, 2 * LAMPORTS_PER_SOL);
       await connection.confirmTransaction(sig, 'confirmed');
       console.log('✅ Airdrop confirmed');
     } catch (error) {
@@ -87,7 +87,6 @@ async function main() {
     }
   }
 
-  // Ask user if they want to create a new token
   const answer = await promptUser(`Do you want to create a new SPL token? (y/n) [default: y]`);
   if (answer === 'y' || answer === 'yes' || answer === '') {
     // --- Step 1: Create SPL Token ---
@@ -165,8 +164,8 @@ async function main() {
 
       console.log('✅ Metadata created:', metadataPda[0], sig);
     } catch (error) {
-      console.log('❌ Metadata creation failed:', error);
       // Continue without metadata for now
+      console.log('❌ Metadata creation failed:', error);
     }
 
     console.log('\n🎉 Coin creation complete!');
@@ -174,7 +173,6 @@ async function main() {
     console.log(`Token Account: ${tokenAccount.toBase58()}`);
   }
 
-  // Ask if the user wants to create a new LP
   const lpAnswer = await promptUser(
     `Do you want to create a new liquidity pool for an existing token? (y/n) [default: n]`,
   );
@@ -182,7 +180,6 @@ async function main() {
     // Proceed to create liquidity pool only
     console.log('Proceeding to create liquidity pool only.');
 
-    // Ask the user for the existing token mint address
     if (!mintAddress) {
       const mintAddressInput = await promptUser(`Enter the existing token mint address:`);
       try {
@@ -193,7 +190,6 @@ async function main() {
       }
     }
 
-    // Create liquidity pool
     await createLiquidityPool(connection, walletKp, mintAddress, decimals);
     return;
   } else {

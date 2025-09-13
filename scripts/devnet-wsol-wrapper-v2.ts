@@ -25,7 +25,7 @@ import {
 export async function wrapSolToWSOL(connection: Connection, payer: Keypair, amount: number) {
   const wsolAta = await getAssociatedTokenAddress(NATIVE_MINT, payer.publicKey);
 
-  // Create the associated token account for WSOL if it doesn't exist.
+  // Create the associated token account for WSOL if it doesn't exist
   const createAtaTx = new Transaction().add(
     createAssociatedTokenAccountInstruction(
       payer.publicKey,
@@ -39,7 +39,7 @@ export async function wrapSolToWSOL(connection: Connection, payer: Keypair, amou
 
   await sendAndConfirmTransaction(connection, createAtaTx, [payer]);
 
-  // Send the SOL to the WSOL ATA.
+  // Send the SOL to the WSOL ATA
   const wrapTx = new Transaction().add(
     SystemProgram.transfer({
       fromPubkey: payer.publicKey,
@@ -48,7 +48,7 @@ export async function wrapSolToWSOL(connection: Connection, payer: Keypair, amou
     }),
   );
 
-  // Sync the wrapped SOL.
+  // Sync the wrapped SOL
   wrapTx.add(createSyncNativeInstruction(wsolAta, TOKEN_PROGRAM_ID));
 
   await sendAndConfirmTransaction(connection, wrapTx, [payer]);

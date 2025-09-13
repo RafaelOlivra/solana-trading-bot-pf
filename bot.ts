@@ -381,7 +381,7 @@ export class Bot {
               },
               `Confirmed sell tx`,
             );
-            break; // ✅ success, exit loop
+            break; // Success, exit loop
           }
 
           logger.info(
@@ -401,6 +401,8 @@ export class Bot {
     } finally {
       if (this.config.oneTokenAtATime) {
         this.sellExecutionCount--;
+
+        // Only restart listeners if we actually stopped them earlier
         if (listenersStopped) {
           try {
             await listeners.start();
@@ -413,7 +415,6 @@ export class Bot {
     }
   }
 
-  // noinspection JSUnusedLocalSymbols
   private async swap(
     poolKeys: LiquidityPoolKeysV4,
     ataIn: PublicKey,

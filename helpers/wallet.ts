@@ -7,7 +7,7 @@ import { logger } from './logger';
 export function getWallet(wallet: string): Keypair {
   // most likely someone pasted the private key in binary format
   if (wallet.startsWith('[')) {
-    const raw = new Uint8Array(JSON.parse(wallet))
+    const raw = new Uint8Array(JSON.parse(wallet));
     return Keypair.fromSecretKey(raw);
   }
 

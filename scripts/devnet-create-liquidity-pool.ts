@@ -3,6 +3,7 @@ import { NATIVE_MINT, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { wrapSolToWSOL } from './devnet-wsol-wrapper-v2';
 import { Raydium, DEVNET_PROGRAM_ID, getCpmmPdaAmmConfigId, getAssociatedPoolKeys } from '@raydium-io/raydium-sdk-v2';
 import BN from 'bn.js';
+
 /**
  * Creates a Raydium liquidity pool on Devnet.
  *
@@ -30,6 +31,9 @@ export async function createLiquidityPool(
   });
 
   // prepare mints (example: your token + WSOL)
+  const mintA = await raydium.token.getTokenInfo(mintAddress.toBase58());
+  const mintAAmount = new BN(100 * 10 ** decimals);
+
   const mintB = {
     address: NATIVE_MINT.toBase58(),
     decimals: 9,
@@ -37,13 +41,11 @@ export async function createLiquidityPool(
   }; // WSOL
   const mintBAmount = new BN(0.1 * LAMPORTS_PER_SOL);
 
-  const mintA = await raydium.token.getTokenInfo(mintAddress.toBase58());
-  const mintAAmount = new BN(100 * 10 ** decimals);
-
   // 2. Fetch available fee configs
   const feeConfigs = await raydium.api.getCpmmConfigs();
 
-  // 3. (if on devnet) adjust them: usually, set `config.id` appropriately (e.g. via a PDA) so that the id aligns with devnet program settings
+  // 3. (if on devnet) adjust them: usually, set `config.id` appropriately (e.g. via a PDA)
+  // so that the id aligns with devnet program settings
   if (raydium.cluster === 'devnet') {
     feeConfigs.forEach((config) => {
       config.id = getCpmmPdaAmmConfigId(DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_PROGRAM, config.index).publicKey.toBase58();
@@ -57,7 +59,7 @@ export async function createLiquidityPool(
   console.log('Fee Account:', DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_FEE_ACC.toBase58());
   console.log('Fee Config:', myFeeConfig);
 
-  // build tx (params follow demo API)
+  // Build tx (params follow demo API)
   const poolInfo = await raydium.cpmm.createPool({
     programId: DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_PROGRAM,
     poolFeeAccount: DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_FEE_ACC,
@@ -76,7 +78,7 @@ export async function createLiquidityPool(
 
   console.log('Creating liquidity pool...');
 
-  // send
+  // Send
   const transactionSignature = await sendAndConfirmTransaction(
     connection,
     transaction,

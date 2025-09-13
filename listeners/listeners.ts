@@ -13,7 +13,7 @@ import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { EventEmitter } from 'events';
 import { logger, USE_SNIPE_LIST } from '../helpers';
 
-type StartParameters = {
+type ListenerConfig = {
   walletPublicKey: PublicKey;
   quoteToken: Token;
   autoSell: boolean;
@@ -25,18 +25,18 @@ export class Listeners extends EventEmitter {
   private subscriptions: number[] = [];
 
   private MARKET_PROGRAM_ID: ProgramId = MAINNET_PROGRAM_ID;
-  private START_PARAMS: StartParameters | null = null;
+  private CONFIG: ListenerConfig | null = null;
 
   constructor(private readonly connection: Connection) {
     super();
   }
 
-  public async start(config: StartParameters | null = null) {
+  public async start(config: ListenerConfig | null = null) {
     // Allow restarting with previous config
-    if (config === null && this.START_PARAMS !== null) {
+    if (config === null && this.CONFIG !== null) {
       logger.info('Reloading Listeners with previous configuration');
       await this.stop();
-      config = this.START_PARAMS;
+      config = this.CONFIG;
     } else if (config === null) {
       throw new Error('Listeners not started: No configuration provided');
     } else {
@@ -44,10 +44,11 @@ export class Listeners extends EventEmitter {
       await this.stop();
     }
 
-    this.START_PARAMS = config;
+    this.CONFIG = config;
     this.MARKET_PROGRAM_ID = config.network === 'devnet' ? DEVNET_PROGRAM_ID : MAINNET_PROGRAM_ID;
 
     // Subscriptions
+
     if (config.cacheNewMarkets) {
       const openBookSubscription = await this.subscribeToOpenBookMarkets(config);
       this.subscriptions.push(openBookSubscription);
