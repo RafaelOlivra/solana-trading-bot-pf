@@ -551,7 +551,7 @@ export class Bot {
       return;
     }
 
-    const timesToCheck = this.config.priceCheckDuration / this.config.priceCheckInterval;
+    const timesToCheck = Math.floor(this.config.priceCheckDuration / this.config.priceCheckInterval);
     const profitFraction = this.config.quoteAmount.mul(this.config.takeProfit).numerator.div(new BN(100));
     const profitAmount = new TokenAmount(this.config.quoteToken, profitFraction, true);
     const takeProfit = this.config.quoteAmount.add(profitAmount);
@@ -579,7 +579,7 @@ export class Bot {
 
         logger.debug(
           { mint: poolKeys.baseMint.toString() },
-          `TP: ${takeProfit.toFixed()} | SL: ${stopLoss.toFixed()} | CU: ${amountOut.toFixed()} | CH: ${timesChecked}/${timesToCheck}`,
+          `TP: ${takeProfit.toFixed()} | SL: ${stopLoss.toFixed()} | CP: ${amountOut.toFixed()} | CH: ${timesChecked}/${timesToCheck}`,
         );
 
         if (amountOut.lt(stopLoss)) {
