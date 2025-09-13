@@ -15,7 +15,7 @@ import {
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
 import { Liquidity, LiquidityPoolKeysV4, LiquidityStateV4, Percent, Token, TokenAmount } from '@raydium-io/raydium-sdk';
-import { MarketCache, PoolCache, SnipeListCache } from './cache';
+import { MarketCache, PoolCache, SnipeListCache, AvoidListCache } from './cache';
 import { Listeners } from './listeners';
 import { PoolFilters } from './filters';
 import { TransactionExecutor } from './transactions';
@@ -38,6 +38,7 @@ export interface BotConfig {
   quoteAta: PublicKey;
   oneTokenAtATime: boolean;
   useSnipeList: boolean;
+  useAvoidList: boolean;
   autoSell: boolean;
   autoBuyDelay: number;
   autoSellDelay: number;
@@ -61,6 +62,9 @@ export class Bot {
 
   // snipe list
   private readonly snipeListCache?: SnipeListCache;
+
+  // avoid list
+  private readonly avoidListCache?: AvoidListCache;
 
   // one token at the time
   private readonly mutex: Mutex;
@@ -88,6 +92,11 @@ export class Bot {
     if (this.config.useSnipeList) {
       this.snipeListCache = new SnipeListCache();
       this.snipeListCache.init();
+    }
+
+    if (this.config.useAvoidList) {
+      this.avoidListCache = new AvoidListCache();
+      this.avoidListCache.init();
     }
   }
 
@@ -129,8 +138,15 @@ export class Bot {
   public async buy(accountId: PublicKey, poolState: LiquidityStateV4, listeners: Listeners) {
     logger.trace({ mint: poolState.baseMint }, `Processing new pool...`);
 
+    // Skip if snipe list is enabled and mint is not in the list
     if (this.config.useSnipeList && !this.snipeListCache?.isInList(poolState.baseMint.toString())) {
       logger.debug({ mint: poolState.baseMint.toString() }, `Skipping buy because token is not in a snipe list`);
+      return;
+    }
+
+    // Skip if avoid list is enabled and mint is in the list
+    if (this.config.useAvoidList && this.avoidListCache?.isInList(poolState.baseMint.toString())) {
+      logger.debug({ mint: poolState.baseMint.toString() }, `Skipping buy because token is in an avoid list`);
       return;
     }
 

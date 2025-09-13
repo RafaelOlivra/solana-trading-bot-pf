@@ -189,6 +189,7 @@ const runListener = async () => {
     quoteAmount: new TokenAmount(quoteToken, QUOTE_AMOUNT, false),
     oneTokenAtATime: ONE_TOKEN_AT_A_TIME,
     useSnipeList: USE_SNIPE_LIST,
+    useAvoidList: true, // Always use avoid list
     autoSell: AUTO_SELL,
     autoSellDelay: AUTO_SELL_DELAY,
     maxSellRetries: MAX_SELL_RETRIES,
