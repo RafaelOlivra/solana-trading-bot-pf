@@ -1,7 +1,13 @@
 import { MarketCache, PoolCache } from './cache';
-import { Listeners } from './listeners/';
+import { Listeners, MinimalCPMMPoolState, isCpmmPoolState } from './listeners/';
 import { Connection, KeyedAccountInfo, Keypair, PublicKey } from '@solana/web3.js';
-import { LIQUIDITY_STATE_LAYOUT_V4, MARKET_STATE_LAYOUT_V3, Token, TokenAmount } from '@raydium-io/raydium-sdk';
+import {
+  LIQUIDITY_STATE_LAYOUT_V4,
+  LiquidityStateV4,
+  MARKET_STATE_LAYOUT_V3,
+  Token,
+  TokenAmount,
+} from '@raydium-io/raydium-sdk';
 import { AccountLayout, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { Bot, BotConfig } from './bot';
 import { DefaultTransactionExecutor, TransactionExecutor } from './transactions';
@@ -213,7 +219,7 @@ const runListener = async () => {
     await marketCache.init({ quoteToken });
   }
 
-  const timeStampAdjustment = 3600 * 4 * 24; // 4 hours ago to accomodate for time differences
+  const timeStampAdjustment = 3600 * 3; // 3 hours ago
   const runTimestamp = Math.floor(new Date().getTime() / 1000) - timeStampAdjustment;
   const listeners = new Listeners(connection);
   await listeners.start({
@@ -233,24 +239,19 @@ const runListener = async () => {
     }
   });
 
-  listeners.on('pool', async (updatedAccountInfo: KeyedAccountInfo) => {
-    let poolState;
+  listeners.on('pool', async (updatedAccountInfo: KeyedAccountInfo | MinimalCPMMPoolState) => {
+    let poolState: LiquidityStateV4;
     let accountId: PublicKey;
 
-    // let typePoolState =  LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
-
-    try {
+    if (!isCpmmPoolState(updatedAccountInfo)) {
+      // Handle decoded Raydium pool state
       poolState = LIQUIDITY_STATE_LAYOUT_V4.decode(updatedAccountInfo.accountInfo.data);
       accountId = updatedAccountInfo.accountId;
-    } catch (error) {
-      // We may be dealing with custom CPMM pool, so data is already decoded in that case
-      poolState = updatedAccountInfo as any;
-      accountId = poolState.accountId;
-    }
-
-    // Ignore if pool doesn't have both mints defined
-    if (!poolState?.baseMint || !poolState?.quoteMint) {
-      return;
+    } else {
+      // Already a decoded CPMM pool
+      // @ts-ignore
+      poolState = updatedAccountInfo;
+      accountId = updatedAccountInfo.accountId;
     }
 
     const poolOpenTime = parseInt(poolState.poolOpenTime.toString());

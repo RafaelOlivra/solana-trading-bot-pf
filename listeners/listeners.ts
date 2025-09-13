@@ -12,13 +12,23 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { EventEmitter } from 'events';
 import { logger, USE_SNIPE_LIST } from '../helpers';
+import BN from 'bn.js';
 
-type ListenerConfig = {
+export type ListenerConfig = {
   walletPublicKey: PublicKey;
   quoteToken: Token;
   autoSell: boolean;
   cacheNewMarkets: boolean;
   network: 'mainnet-beta' | 'devnet';
+};
+
+export type MinimalCPMMPoolState = {
+  accountId: PublicKey;
+  baseMint: PublicKey;
+  quoteMint: PublicKey;
+  lpMint: PublicKey;
+  poolOpenTime: BN;
+  isCpmm: boolean;
 };
 
 export class Listeners extends EventEmitter {
@@ -130,7 +140,7 @@ export class Listeners extends EventEmitter {
         try {
           const decoded = CpmmPoolInfoLayout.decode(updatedAccountInfo.accountInfo.data);
 
-          const poolState = {
+          const poolState: MinimalCPMMPoolState = {
             accountId: updatedAccountInfo.accountId,
             baseMint: decoded.mintB,
             quoteMint: decoded.mintA,
@@ -186,4 +196,8 @@ export class Listeners extends EventEmitter {
 
     this.subscriptions = [];
   }
+}
+
+export function isCpmmPoolState(obj: any): obj is MinimalCPMMPoolState {
+  return 'isCpmm' in obj;
 }
