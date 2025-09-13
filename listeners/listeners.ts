@@ -6,30 +6,52 @@ import {
   Token,
   ProgramId,
 } from '@raydium-io/raydium-sdk';
-import { DEVNET_PROGRAM_ID as DEVNET_PROGRAM_ID_V2, CpmmPoolInfoLayout } from '@raydium-io/raydium-sdk-v2';
+import {
+  DEVNET_PROGRAM_ID as DEVNET_PROGRAM_ID_V2,
+  CpmmPoolInfoLayout,
+} from '@raydium-io/raydium-sdk-v2';
 import bs58 from 'bs58';
-import { Connection, PublicKey, KeyedAccountInfo } from '@solana/web3.js';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { EventEmitter } from 'events';
 import { logger, USE_SNIPE_LIST } from '../helpers';
 
+type StartParameters = {
+  walletPublicKey: PublicKey;
+  quoteToken: Token;
+  autoSell: boolean;
+  cacheNewMarkets: boolean;
+  network: 'mainnet-beta' | 'devnet';
+};
+
 export class Listeners extends EventEmitter {
   private subscriptions: number[] = [];
+
   private MARKET_PROGRAM_ID: ProgramId = MAINNET_PROGRAM_ID;
+  private START_PARAMS: StartParameters | null = null;
 
   constructor(private readonly connection: Connection) {
     super();
   }
 
-  public async start(config: {
-    walletPublicKey: PublicKey;
-    quoteToken: Token;
-    autoSell: boolean;
-    cacheNewMarkets: boolean;
-    network: 'mainnet-beta' | 'devnet';
-  }) {
-    this.MARKET_PROGRAM_ID = config.network === 'devnet' ? DEVNET_PROGRAM_ID : MAINNET_PROGRAM_ID;
+  public async start(config: StartParameters | null = null) {
+    // Allow restarting with previous config
+    if (config === null && this.START_PARAMS !== null) {
+      logger.info('Listeners already started, reloading with previous configuration');
+      await this.stop();
+      config = this.START_PARAMS;
+    } else if (config === null) {
+      throw new Error('Listeners not started: No configuration provided');
+    } else {
+      // Always stop first before applying a new config
+      await this.stop();
+    }
 
+    this.START_PARAMS = config;
+    this.MARKET_PROGRAM_ID =
+      config.network === 'devnet' ? DEVNET_PROGRAM_ID : MAINNET_PROGRAM_ID;
+
+    // Subscriptions
     if (config.cacheNewMarkets) {
       const openBookSubscription = await this.subscribeToOpenBookMarkets(config);
       this.subscriptions.push(openBookSubscription);
@@ -38,7 +60,6 @@ export class Listeners extends EventEmitter {
     const raydiumSubscription = await this.subscribeToRaydiumPools(config);
     this.subscriptions.push(raydiumSubscription);
 
-    // For CPMM pools (Devnet only - Requires USE_SNIPE_LIST=true)
     if (config.network === 'devnet' && USE_SNIPE_LIST) {
       const cpmmSubscription = await this.subscribeToCpmmPools(config);
       this.subscriptions.push(cpmmSubscription);
@@ -105,17 +126,15 @@ export class Listeners extends EventEmitter {
 
     return this.connection.onProgramAccountChange(
       DEVNET_PROGRAM_ID_V2.CREATE_CPMM_POOL_PROGRAM,
-      async (updatedAccountInfo, ctx) => {
+      async (updatedAccountInfo) => {
         const poolId = updatedAccountInfo.accountId.toBase58();
-
         logger.trace(`CPMM pool update: ${poolId}`);
 
         try {
-          // Decode CPMM pool state
-          const decoded = CpmmPoolInfoLayout.decode(updatedAccountInfo.accountInfo.data);
+          const decoded = CpmmPoolInfoLayout.decode(
+            updatedAccountInfo.accountInfo.data,
+          );
 
-          // Wrap into V4-like shape so existing listeners keep working
-          // Not pretty but works for now
           const poolState = {
             accountId: updatedAccountInfo.accountId,
             baseMint: decoded.mintB,
@@ -128,7 +147,9 @@ export class Listeners extends EventEmitter {
           this.emit('pool', poolState);
         } catch (e) {
           logger.error(`❌ Failed to decode CPMM pool: ${e}`);
-          logger.info(`Raw data length: ${updatedAccountInfo.accountInfo.data.length}`);
+          logger.info(
+            `Raw data length: ${updatedAccountInfo.accountInfo.data.length}`,
+          );
         }
       },
       this.connection.commitment,
@@ -158,10 +179,18 @@ export class Listeners extends EventEmitter {
   }
 
   public async stop() {
-    for (let i = this.subscriptions.length; i >= 0; --i) {
-      const subscription = this.subscriptions[i];
-      await this.connection.removeAccountChangeListener(subscription);
-      this.subscriptions.splice(i, 1);
+    if (this.subscriptions.length === 0) {
+      return;
     }
+
+    await Promise.all(
+      this.subscriptions.map((id) =>
+        this.connection.removeAccountChangeListener(id).catch((err) => {
+          logger.error(`Failed to remove listener ${id}: ${err}`);
+        }),
+      ),
+    );
+
+    this.subscriptions = [];
   }
 }

@@ -145,3 +145,6 @@ snipe-list.txt
 tmp/
 temp/
 snipe-list.txt
+
+# Misc
+*.bkp

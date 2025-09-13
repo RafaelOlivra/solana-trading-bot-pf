@@ -1,5 +1,5 @@
 import { MarketCache, PoolCache } from './cache';
-import { Listeners } from './listeners';
+import { Listeners } from './listeners/';
 import { Connection, KeyedAccountInfo, Keypair, PublicKey } from '@solana/web3.js';
 import { LIQUIDITY_STATE_LAYOUT_V4, MARKET_STATE_LAYOUT_V3, Token, TokenAmount } from '@raydium-io/raydium-sdk';
 import { AccountLayout, getAssociatedTokenAddressSync } from '@solana/spl-token';
@@ -271,7 +271,7 @@ const runListener = async () => {
     if (!exists && poolOpenTime > runTimestamp) {
       logger.info(`🆕 New pool processed: ${updatedAccountInfo.accountId.toString()}`);
       poolCache.save(accountId.toString(), poolState);
-      await bot.buy(accountId, poolState);
+      await bot.buy(accountId, poolState, listeners);
     }
   });
 
@@ -289,7 +289,7 @@ const runListener = async () => {
       🪙 Token: ${accountData.mint.toString()}`);
     }
 
-    await bot.sell(updatedAccountInfo.accountId, accountData);
+    await bot.sell(updatedAccountInfo.accountId, accountData, listeners);
   });
 
   printDetails(wallet, quoteToken, bot);

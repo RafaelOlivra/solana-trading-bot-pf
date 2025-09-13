@@ -15,8 +15,8 @@ import {
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
 import { Liquidity, LiquidityPoolKeysV4, LiquidityStateV4, Percent, Token, TokenAmount } from '@raydium-io/raydium-sdk';
-import { Raydium } from '@raydium-io/raydium-sdk-v2';
 import { MarketCache, PoolCache, SnipeListCache } from './cache';
+import { Listeners } from './listeners';
 import { PoolFilters } from './filters';
 import { TransactionExecutor } from './transactions';
 import { createPoolKeys, logger, NETWORK, sleep } from './helpers';
@@ -98,14 +98,35 @@ export class Bot {
       logger.error(
         `${this.config.quoteToken.symbol} token account not found in wallet: ${this.config.wallet.publicKey.toString()}`,
       );
-      // logger.error(error);
       return false;
     }
 
     return true;
   }
 
-  public async buy(accountId: PublicKey, poolState: LiquidityStateV4) {
+  // Helper to log SendTransactionError details when available
+  private async logSendTransactionError(error: any, context: Record<string, any> = {}, msg = 'SendTransactionError') {
+    try {
+      // Some implementations provide getLogs() to get simulation logs
+      if (typeof error?.getLogs === 'function') {
+        const logs = await error.getLogs();
+        logger.debug({ ...context, logs, error }, `${msg} (with simulation logs)`);
+        return;
+      }
+
+      // Some libs put logs in error.transactionLogs or error.message
+      if (error?.transactionLogs) {
+        logger.debug({ ...context, transactionLogs: error.transactionLogs }, `${msg} (transactionLogs)`);
+        return;
+      }
+
+      logger.debug({ ...context, error }, msg);
+    } catch (e) {
+      logger.debug({ ...context, error, innerError: e }, `${msg} (failed to fetch logs)`);
+    }
+  }
+
+  public async buy(accountId: PublicKey, poolState: LiquidityStateV4, listeners: Listeners) {
     logger.trace({ mint: poolState.baseMint }, `Processing new pool...`);
 
     if (this.config.useSnipeList && !this.snipeListCache?.isInList(poolState.baseMint.toString())) {
@@ -118,17 +139,44 @@ export class Bot {
       await sleep(this.config.autoBuyDelay);
     }
 
+    // Flags to track what we actually changed so finally block can clean up correctly
+    let acquiredMutex = false;
+    let listenersStopped = false;
+
     if (this.config.oneTokenAtATime) {
+      // Stop listeners while we hold the mutex to avoid piling up events
+      // Only stop them when there's an ongoing sell execution (so we don't unnecessarily pause listeners)
+      if (this.sellExecutionCount > 0) {
+        try {
+          await listeners.stop();
+          listenersStopped = true;
+          logger.debug(
+            { mint: poolState.baseMint.toString() },
+            `Stopped listeners while processing one token at a time`,
+          );
+        } catch (err) {
+          logger.error({ err }, 'Failed to stop listeners before processing token; continuing anyway');
+        }
+      }
+
+      // If someone else is already processing a token, skip
       if (this.mutex.isLocked() || this.sellExecutionCount > 0) {
         logger.debug(
           { mint: poolState.baseMint.toString() },
           `Skipping buy because one token at a time is turned on and token is already being processed`,
         );
+        // We didn't acquire mutex nor stop listeners here (unless we stopped them above),
+        // so cleanup will only restart listeners if we stopped them.
         return;
       }
 
+      // Acquire the mutex after listeners are stopped (if any)
       await this.mutex.acquire();
+      acquiredMutex = true;
     }
+
+    // Use a flag to indicate we must cleanup (release mutex + restart listeners) in finally
+    const mustCleanup = this.config.oneTokenAtATime;
 
     // Buy only if market exists
     if (poolState.marketId) {
@@ -145,13 +193,6 @@ export class Bot {
 
           if (!match) {
             logger.trace({ mint: poolKeys.baseMint.toString() }, `Skipping buy because pool doesn't match filters`);
-            if (this.config.oneTokenAtATime) {
-              logger.debug(
-                { mint: poolKeys.baseMint.toString() },
-                `Releasing mutex because pool doesn't match filters`,
-              );
-              this.mutex.release();
-            }
             return;
           }
         }
@@ -192,10 +233,10 @@ export class Bot {
                 },
                 `Confirmed buy tx`,
               );
-
               break;
             }
 
+            // If result exists but not confirmed, log details
             logger.info(
               {
                 mint: poolState.baseMint.toString(),
@@ -205,14 +246,32 @@ export class Bot {
               `Error confirming buy tx`,
             );
           } catch (error) {
-            logger.debug({ mint: poolState.baseMint.toString(), error }, `Error confirming buy transaction`);
+            // Better diagnostics for SendTransactionError
+            await this.logSendTransactionError(
+              error,
+              { mint: poolState.baseMint.toString() },
+              'Error confirming buy transaction',
+            );
           }
         }
       } catch (error) {
         logger.error({ mint: poolState.baseMint.toString(), error }, `Failed to buy token`);
       } finally {
-        if (this.config.oneTokenAtATime) {
-          this.mutex.release();
+        if (mustCleanup) {
+          if (acquiredMutex) {
+            try {
+              this.mutex.release();
+            } catch (e) {
+              logger.error({ e }, 'Error releasing mutex in buy finally');
+            }
+          }
+          if (listenersStopped) {
+            try {
+              await listeners.start();
+            } catch (e) {
+              logger.error({ e }, 'Failed to restart listeners after buy; continuing');
+            }
+          }
         }
         return;
       }
@@ -221,22 +280,50 @@ export class Bot {
     else {
       logger.debug({ mint: poolState.baseMint.toString() }, `Skipping buy because pool has no market (CPMM)`);
       if (this.config.oneTokenAtATime) {
-        this.mutex.release();
+        // Only release if we actually acquired it
+        if (acquiredMutex) {
+          try {
+            this.mutex.release();
+          } catch (e) {
+            logger.error({ e }, 'Error releasing mutex after CPMM skip');
+          }
+        }
+        // Only start listeners if we actually stopped them earlier
+        if (listenersStopped) {
+          try {
+            await listeners.start();
+          } catch (e) {
+            logger.error({ e }, 'Failed to restart listeners after CPMM skip; continuing');
+          }
+        }
       }
       return;
     }
   }
 
-  public async sell(accountId: PublicKey, rawAccount: RawAccount) {
+  public async sell(accountId: PublicKey, rawAccount: RawAccount, listeners: Listeners) {
+    let listenersStopped = false;
+
     if (this.config.oneTokenAtATime) {
       this.sellExecutionCount++;
+      try {
+        // If listeners are still running while a sell is happening, stop them
+        try {
+          await listeners.stop();
+          listenersStopped = true;
+          logger.debug({ mint: rawAccount.mint.toString() }, `Stopped listeners while processing sell`);
+        } catch (err) {
+          logger.error({ err }, 'Failed to stop listeners before processing sell; continuing anyway');
+        }
+      } catch (e) {
+        logger.error({ e }, 'Error preparing for oneTokenAtATime sell');
+      }
     }
 
     try {
       logger.trace({ mint: rawAccount.mint }, `Processing new token...`);
 
       const poolData = await this.poolStorage.get(rawAccount.mint.toString());
-
       if (!poolData) {
         logger.trace({ mint: rawAccount.mint.toString() }, `Token pool data is not found, can't sell`);
         return;
@@ -294,19 +381,19 @@ export class Bot {
               },
               `Confirmed sell tx`,
             );
-            break;
+            break; // ✅ success, exit loop
           }
 
           logger.info(
-            {
-              mint: rawAccount.mint.toString(),
-              signature: result.signature,
-              error: result.error,
-            },
+            { mint: rawAccount.mint.toString(), signature: result.signature, error: result.error },
             `Error confirming sell tx`,
           );
         } catch (error) {
-          logger.debug({ mint: rawAccount.mint.toString(), error }, `Error confirming sell transaction`);
+          await this.logSendTransactionError(
+            error,
+            { mint: rawAccount.mint.toString() },
+            'Error confirming sell transaction',
+          );
         }
       }
     } catch (error) {
@@ -314,6 +401,14 @@ export class Bot {
     } finally {
       if (this.config.oneTokenAtATime) {
         this.sellExecutionCount--;
+        if (listenersStopped) {
+          try {
+            await listeners.start();
+            logger.debug({ mint: rawAccount.mint.toString() }, 'Restarted listeners after sell');
+          } catch (e) {
+            logger.error({ e }, 'Failed to restart listeners after sell; continuing');
+          }
+        }
       }
     }
   }
