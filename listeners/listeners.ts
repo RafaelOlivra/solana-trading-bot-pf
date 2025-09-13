@@ -6,10 +6,7 @@ import {
   Token,
   ProgramId,
 } from '@raydium-io/raydium-sdk';
-import {
-  DEVNET_PROGRAM_ID as DEVNET_PROGRAM_ID_V2,
-  CpmmPoolInfoLayout,
-} from '@raydium-io/raydium-sdk-v2';
+import { DEVNET_PROGRAM_ID as DEVNET_PROGRAM_ID_V2, CpmmPoolInfoLayout } from '@raydium-io/raydium-sdk-v2';
 import bs58 from 'bs58';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
@@ -37,7 +34,7 @@ export class Listeners extends EventEmitter {
   public async start(config: StartParameters | null = null) {
     // Allow restarting with previous config
     if (config === null && this.START_PARAMS !== null) {
-      logger.info('Listeners already started, reloading with previous configuration');
+      logger.info('Reloading Listeners with previous configuration');
       await this.stop();
       config = this.START_PARAMS;
     } else if (config === null) {
@@ -48,8 +45,7 @@ export class Listeners extends EventEmitter {
     }
 
     this.START_PARAMS = config;
-    this.MARKET_PROGRAM_ID =
-      config.network === 'devnet' ? DEVNET_PROGRAM_ID : MAINNET_PROGRAM_ID;
+    this.MARKET_PROGRAM_ID = config.network === 'devnet' ? DEVNET_PROGRAM_ID : MAINNET_PROGRAM_ID;
 
     // Subscriptions
     if (config.cacheNewMarkets) {
@@ -131,9 +127,7 @@ export class Listeners extends EventEmitter {
         logger.trace(`CPMM pool update: ${poolId}`);
 
         try {
-          const decoded = CpmmPoolInfoLayout.decode(
-            updatedAccountInfo.accountInfo.data,
-          );
+          const decoded = CpmmPoolInfoLayout.decode(updatedAccountInfo.accountInfo.data);
 
           const poolState = {
             accountId: updatedAccountInfo.accountId,
@@ -147,9 +141,7 @@ export class Listeners extends EventEmitter {
           this.emit('pool', poolState);
         } catch (e) {
           logger.error(`❌ Failed to decode CPMM pool: ${e}`);
-          logger.info(
-            `Raw data length: ${updatedAccountInfo.accountInfo.data.length}`,
-          );
+          logger.info(`Raw data length: ${updatedAccountInfo.accountInfo.data.length}`);
         }
       },
       this.connection.commitment,

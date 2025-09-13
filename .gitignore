@@ -140,6 +140,7 @@ pnpm-lock.yaml
 
 # Snipe list
 snipe-list.txt
+pool-cache.txt
 
 # Temporary folders
 tmp/
