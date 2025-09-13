@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { logger, SNIPE_LIST_REFRESH_INTERVAL } from '../helpers';
+import { logger } from '../helpers';
+
+const AVOID_LIST_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 export class AvoidListCache {
   private avoidList: string[] = [];
@@ -13,7 +15,7 @@ export class AvoidListCache {
       logger.info(`Created empty avoid list at ${this.fileLocation}`);
     }
 
-    setInterval(() => this.loadAvoidList(), SNIPE_LIST_REFRESH_INTERVAL);
+    setInterval(() => this.loadAvoidList(), AVOID_LIST_REFRESH_INTERVAL);
   }
 
   public init() {
