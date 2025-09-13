@@ -44,7 +44,7 @@ export class Listeners extends EventEmitter {
   public async start(config: ListenerConfig | null = null) {
     // Allow restarting with previous config
     if (config === null && this.CONFIG !== null) {
-      logger.info('Reloading Listeners with previous configuration');
+      logger.info('Reloading listeners with previous configuration');
       await this.stop();
       config = this.CONFIG;
     } else if (config === null) {

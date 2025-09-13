@@ -563,7 +563,7 @@ export class Bot {
 
         logger.debug(
           { mint: poolKeys.baseMint.toString() },
-          `Take profit: ${takeProfit.toFixed()} | Stop loss: ${stopLoss.toFixed()} | Current: ${amountOut.toFixed()} | Checked ${timesChecked}/${timesToCheck}`,
+          `TP: ${takeProfit.toFixed()} | SL: ${stopLoss.toFixed()} | CU: ${amountOut.toFixed()} | CH: ${timesChecked}/${timesToCheck}`,
         );
 
         if (amountOut.lt(stopLoss)) {
