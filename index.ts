@@ -14,6 +14,7 @@ import { DefaultTransactionExecutor, TransactionExecutor } from './transactions'
 import {
   getToken,
   getWallet,
+  CustomConnection,
   logger,
   COMMITMENT_LEVEL,
   NETWORK,
@@ -59,10 +60,13 @@ import { WarpTransactionExecutor } from './transactions/warp-transaction-executo
 import { JitoTransactionExecutor } from './transactions/jito-rpc-transaction-executor';
 import { log } from 'console';
 
-const connection = new Connection(RPC_ENDPOINT, {
-  wsEndpoint: RPC_WEBSOCKET_ENDPOINT,
-  commitment: COMMITMENT_LEVEL,
-});
+// const connection = new Connection(RPC_ENDPOINT, {
+//   wsEndpoint: RPC_WEBSOCKET_ENDPOINT,
+//   commitment: COMMITMENT_LEVEL,
+// });
+
+const customConnection = new CustomConnection();
+const defaultConnection = customConnection.getConnection();
 
 function printDetails(wallet: Keypair, quoteToken: Token, bot: Bot) {
   logger.info(`  
@@ -155,7 +159,7 @@ const runListener = async () => {
   logger.level = LOG_LEVEL;
   logger.info('Bot is starting...');
 
-  const marketCache = new MarketCache(connection);
+  const marketCache = new MarketCache(defaultConnection);
   const poolCache = new PoolCache();
   let txExecutor: TransactionExecutor;
 
@@ -165,11 +169,11 @@ const runListener = async () => {
       break;
     }
     case 'jito': {
-      txExecutor = new JitoTransactionExecutor(CUSTOM_FEE, connection);
+      txExecutor = new JitoTransactionExecutor(CUSTOM_FEE, defaultConnection);
       break;
     }
     default: {
-      txExecutor = new DefaultTransactionExecutor(connection);
+      txExecutor = new DefaultTransactionExecutor(customConnection);
       break;
     }
   }
@@ -206,9 +210,10 @@ const runListener = async () => {
     filterCheckInterval: FILTER_CHECK_INTERVAL,
     filterCheckDuration: FILTER_CHECK_DURATION,
     consecutiveMatchCount: CONSECUTIVE_FILTER_MATCHES,
+    refreshConnectionOnError: true, // Refresh connection on error
   };
 
-  const bot = new Bot(connection, marketCache, poolCache, txExecutor, botConfig);
+  const bot = new Bot(customConnection, marketCache, poolCache, txExecutor, botConfig);
   const valid = await bot.validate();
 
   if (!valid) {
@@ -222,7 +227,7 @@ const runListener = async () => {
 
   const timeStampAdjustment = 3600 * 3; // 3 hours ago
   const runTimestamp = Math.floor(new Date().getTime() / 1000) - timeStampAdjustment;
-  const listeners = new Listeners(connection);
+  const listeners = new Listeners(defaultConnection);
   await listeners.start({
     walletPublicKey: wallet.publicKey,
     quoteToken,

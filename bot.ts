@@ -18,8 +18,8 @@ import { Liquidity, LiquidityPoolKeysV4, LiquidityStateV4, Percent, Token, Token
 import { MarketCache, PoolCache, SnipeListCache, AvoidListCache } from './cache';
 import { Listeners } from './listeners';
 import { PoolFilters } from './filters';
-import { TransactionExecutor } from './transactions';
-import { createPoolKeys, logger, NETWORK, sleep } from './helpers';
+import { TransactionExecutor, DefaultTransactionExecutor } from './transactions';
+import { createPoolKeys, logger, NETWORK, sleep, CustomConnection } from './helpers';
 import { Mutex } from 'async-mutex';
 import BN from 'bn.js';
 import { WarpTransactionExecutor } from './transactions/warp-transaction-executor';
@@ -55,9 +55,12 @@ export interface BotConfig {
   filterCheckInterval: number;
   filterCheckDuration: number;
   consecutiveMatchCount: number;
+  refreshConnectionOnError?: boolean;
 }
 
 export class Bot {
+  private connection: Connection;
+
   private readonly poolFilters: PoolFilters;
 
   // snipe list
@@ -73,17 +76,19 @@ export class Bot {
   public readonly isJito: boolean = false;
 
   constructor(
-    private readonly connection: Connection,
+    private readonly customConnection: CustomConnection,
     private readonly marketStorage: MarketCache,
     private readonly poolStorage: PoolCache,
     private readonly txExecutor: TransactionExecutor,
     readonly config: BotConfig,
   ) {
+    this.connection = this.customConnection.getConnection();
+
     this.isWarp = txExecutor instanceof WarpTransactionExecutor;
     this.isJito = txExecutor instanceof JitoTransactionExecutor;
 
     this.mutex = new Mutex();
-    this.poolFilters = new PoolFilters(connection, {
+    this.poolFilters = new PoolFilters(this.connection, {
       quoteToken: this.config.quoteToken,
       minPoolSize: this.config.minPoolSize,
       maxPoolSize: this.config.maxPoolSize,
@@ -262,12 +267,15 @@ export class Bot {
               `Error confirming buy tx`,
             );
           } catch (error) {
-            // Better diagnostics for SendTransactionError
+            // Log error and continue to retry
             await this.logSendTransactionError(
               error,
               { mint: poolState.baseMint.toString() },
               'Error confirming buy transaction',
             );
+
+            // Refresh connection in case of error
+            this.refreshConnection();
           }
         }
       } catch (error) {
@@ -410,6 +418,9 @@ export class Bot {
             { mint: rawAccount.mint.toString() },
             'Error confirming sell transaction',
           );
+
+          // Refresh connection in case of error
+          this.refreshConnection();
         }
       }
     } catch (error) {
@@ -597,5 +608,18 @@ export class Bot {
         timesChecked++;
       }
     } while (timesChecked < timesToCheck);
+  }
+
+  /**
+   * Refresh connection and transaction executor connection if enabled in config
+   */
+  private refreshConnection() {
+    if (this.config.refreshConnectionOnError) {
+      this.connection = this.customConnection.refreshConnection();
+
+      if (this.txExecutor instanceof DefaultTransactionExecutor) {
+        this.txExecutor.refreshConnection();
+      }
+    }
   }
 }

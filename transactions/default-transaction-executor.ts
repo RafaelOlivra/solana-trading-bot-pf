@@ -6,16 +6,19 @@ import {
   VersionedTransaction,
 } from '@solana/web3.js';
 import { TransactionExecutor } from './transaction-executor.interface';
-import { logger } from '../helpers';
+import { logger, CustomConnection } from '../helpers';
 
 export class DefaultTransactionExecutor implements TransactionExecutor {
-  constructor(private readonly connection: Connection) {}
+  private connection: Connection;
+  constructor(private readonly customConnection: CustomConnection) {
+    this.connection = this.customConnection.getConnection();
+  }
 
   public async executeAndConfirm(
     transaction: VersionedTransaction,
     payer: Keypair,
     latestBlockhash: BlockhashWithExpiryBlockHeight,
-  ): Promise<{ confirmed: boolean; signature?: string, error?: string }> {
+  ): Promise<{ confirmed: boolean; signature?: string; error?: string }> {
     logger.debug('Executing transaction...');
     const signature = await this.execute(transaction);
 
@@ -40,5 +43,9 @@ export class DefaultTransactionExecutor implements TransactionExecutor {
     );
 
     return { confirmed: !confirmation.value.err, signature };
+  }
+
+  public refreshConnection() {
+    this.connection = this.customConnection.refreshConnection();
   }
 }
