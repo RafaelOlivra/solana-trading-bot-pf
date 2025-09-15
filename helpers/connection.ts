@@ -75,6 +75,7 @@ export class CustomConnection {
 
   /**
    * Get the current connection
+   *
    */
   public getConnection(): Connection {
     return this.connection;
@@ -82,7 +83,6 @@ export class CustomConnection {
 
   /**
    * Refresh connection (e.g., in case of RPC failure)
-   * @return New Connection instance
    */
   public refreshConnection(): Connection {
     this.connection = this.getRandomConnection();
