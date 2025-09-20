@@ -1,4 +1,3 @@
-import { Connection } from '@solana/web3.js';
 import { LiquidityPoolKeysV4, Token, TokenAmount } from '@raydium-io/raydium-sdk';
 import { getMetadataAccountDataSerializer } from '@metaplex-foundation/mpl-token-metadata';
 import { BurnFilter } from './burn.filter';
@@ -14,6 +13,7 @@ import {
   CHECK_IF_SOCIALS,
   CHECK_FROM_PUMP_FUN,
   logger,
+  CustomConnection,
 } from '../helpers';
 
 export interface Filter {
@@ -35,7 +35,7 @@ export class PoolFilters {
   private readonly filters: Filter[] = [];
 
   constructor(
-    readonly connection: Connection,
+    readonly connection: CustomConnection['connection'],
     readonly args: PoolFilterArgs,
   ) {
     if (CHECK_IF_BURNED) {

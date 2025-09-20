@@ -1,6 +1,6 @@
 import { MarketCache, PoolCache } from './cache';
 import { Listeners, MinimalCPMMPoolState, isCpmmPoolState } from './listeners/';
-import { Connection, KeyedAccountInfo, Keypair, PublicKey } from '@solana/web3.js';
+import { KeyedAccountInfo, Keypair, PublicKey } from '@solana/web3.js';
 import {
   LIQUIDITY_STATE_LAYOUT_V4,
   LiquidityStateV4,
@@ -59,11 +59,6 @@ import { version } from './package.json';
 import { WarpTransactionExecutor } from './transactions/warp-transaction-executor';
 import { JitoTransactionExecutor } from './transactions/jito-rpc-transaction-executor';
 import { log } from 'console';
-
-// const connection = new Connection(RPC_ENDPOINT, {
-//   wsEndpoint: RPC_WEBSOCKET_ENDPOINT,
-//   commitment: COMMITMENT_LEVEL,
-// });
 
 const customConnection = new CustomConnection();
 const defaultConnection = customConnection.getConnection();
@@ -159,7 +154,7 @@ const runListener = async () => {
   logger.level = LOG_LEVEL;
   logger.info('Bot is starting...');
 
-  const marketCache = new MarketCache(defaultConnection);
+  const marketCache = new MarketCache(customConnection);
   const poolCache = new PoolCache();
   let txExecutor: TransactionExecutor;
 
@@ -227,7 +222,7 @@ const runListener = async () => {
 
   const timeStampAdjustment = 3600 * 3; // 3 hours ago
   const runTimestamp = Math.floor(new Date().getTime() / 1000) - timeStampAdjustment;
-  const listeners = new Listeners(defaultConnection);
+  const listeners = new Listeners(customConnection);
   await listeners.start({
     walletPublicKey: wallet.publicKey,
     quoteToken,

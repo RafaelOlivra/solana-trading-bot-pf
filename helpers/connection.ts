@@ -10,19 +10,25 @@ type ConnectionArgs = {
 const VALID_COMMITMENTS: Commitment[] = ['processed', 'confirmed', 'finalized'];
 
 /**
- * This Class works with multiple endpoints separated by ||  \
- * Each connection should have a corresponding wsEndpoint. \
- * Commitment level will be the same for all connections.  \
- * e.g.:  \
- * RPC_ENDPOINT=https://config1.url||https://config2.url||https://config3.url  \
- * RPC_WEBSOCKET_ENDPOINT=wss://config1.url||wss://config2.url||wss://config3.url  \
+ * This Class works with multiple endpoints separated by ||
+ * Each connection should have a corresponding wsEndpoint.
+ * Commitment level will be the same for all connections.
+ * e.g.:
+ * RPC_ENDPOINT=https://config1.url||https://config2.url||https://config3.url
+ * RPC_WEBSOCKET_ENDPOINT=wss://config1.url||wss://config2.url||wss://config3.url
  * COMMITMENT_LEVEL=confirmed
  */
 export class CustomConnection {
   private connection: Connection;
+  private connections: ConnectionArgs[];
 
-  constructor() {
+  constructor(connectionArgs?: ConnectionArgs[]) {
     this.validateCommitmentLevel();
+
+    // Use provided args or load from env
+    this.connections =
+      connectionArgs && connectionArgs.length > 0 ? connectionArgs : this.retrieveAvailableENVConnections();
+
     this.connection = this.getRandomConnection();
   }
 
@@ -38,10 +44,10 @@ export class CustomConnection {
   }
 
   /**
-   * Retrieves available connection configurations.
+   * Retrieves available connection configurations from env
    * @returns Array of connection configurations
    */
-  private retrieveAvailableConnections(): ConnectionArgs[] {
+  private retrieveAvailableENVConnections(): ConnectionArgs[] {
     if (!RPC_ENDPOINT || !RPC_WEBSOCKET_ENDPOINT) {
       throw new Error('RPC_ENDPOINT and RPC_WEBSOCKET_ENDPOINT must be defined');
     }
@@ -64,8 +70,7 @@ export class CustomConnection {
    * Pick a random connection from available ones
    */
   private getRandomConnection(): Connection {
-    const connections = this.retrieveAvailableConnections();
-    const connection = connections[Math.floor(Math.random() * connections.length)];
+    const connection = this.connections[Math.floor(Math.random() * this.connections.length)];
 
     return new Connection(connection.rpcEndpoint, {
       commitment: connection.commitmentLevel,
@@ -75,7 +80,6 @@ export class CustomConnection {
 
   /**
    * Get the current connection
-   *
    */
   public getConnection(): Connection {
     return this.connection;

@@ -1,5 +1,4 @@
 import {
-  Connection,
   Keypair,
   PublicKey,
   clusterApiUrl,
@@ -13,16 +12,20 @@ import { keypairIdentity } from '@metaplex-foundation/umi';
 import { fromWeb3JsKeypair, fromWeb3JsPublicKey, toWeb3JsPublicKey } from '@metaplex-foundation/umi-web3js-adapters';
 import { createMetadataAccountV3, findMetadataPda } from '@metaplex-foundation/mpl-token-metadata';
 import { createLiquidityPool } from './devnet-create-liquidity-pool';
+import { CustomConnection } from '../helpers';
 import fs from 'fs';
 import bs58 from 'bs58';
-
 import { DEVNET_COMMITMENT_LEVEL, DEVNET_RPC_ENDPOINT, DEVNET_RPC_WEBSOCKET_ENDPOINT } from '../helpers';
 
-const connection = new Connection(DEVNET_RPC_ENDPOINT, {
-  wsEndpoint: DEVNET_RPC_WEBSOCKET_ENDPOINT,
-  commitment: DEVNET_COMMITMENT_LEVEL,
-});
+const customConnection = new CustomConnection([
+  {
+    rpcEndpoint: DEVNET_RPC_ENDPOINT,
+    rpcWsEndpoint: DEVNET_RPC_WEBSOCKET_ENDPOINT,
+    commitmentLevel: DEVNET_COMMITMENT_LEVEL,
+  },
+]);
 
+const connection = customConnection.getConnection();
 // Path to the wallet file
 const WALLET_FILE = './tmp/devnet-wallet.json';
 
@@ -190,7 +193,7 @@ async function main() {
       }
     }
 
-    await createLiquidityPool(connection, walletKp, mintAddress, decimals);
+    await createLiquidityPool(customConnection, walletKp, mintAddress, decimals);
     return;
   } else {
     console.log('Exiting without creating anything.');

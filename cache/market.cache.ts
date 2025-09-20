@@ -1,10 +1,15 @@
-import { Connection, PublicKey } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 import { getMinimalMarketV3, logger, MINIMAL_MARKET_STATE_LAYOUT_V3, MinimalMarketLayoutV3 } from '../helpers';
 import { MAINNET_PROGRAM_ID, MARKET_STATE_LAYOUT_V3, Token } from '@raydium-io/raydium-sdk';
+import { CustomConnection } from '../helpers';
 
 export class MarketCache {
   private readonly keys: Map<string, MinimalMarketLayoutV3> = new Map<string, MinimalMarketLayoutV3>();
-  constructor(private readonly connection: Connection) {}
+  private connection: CustomConnection['connection'];
+
+  constructor(private readonly customConnection: CustomConnection) {
+    this.connection = this.customConnection.getConnection();
+  }
 
   async init(config: { quoteToken: Token }) {
     logger.debug({}, `Fetching all existing ${config.quoteToken.symbol} markets...`);

@@ -1,11 +1,10 @@
 import { Filter, FilterResult } from './pool-filters';
 import { LiquidityPoolKeysV4, Token, TokenAmount } from '@raydium-io/raydium-sdk';
-import { Connection } from '@solana/web3.js';
-import { logger } from '../helpers';
+import { CustomConnection, logger } from '../helpers';
 
 export class PoolSizeFilter implements Filter {
   constructor(
-    private readonly connection: Connection,
+    private readonly connection: CustomConnection['connection'],
     private readonly quoteToken: Token,
     private readonly minPoolSize: TokenAmount,
     private readonly maxPoolSize: TokenAmount,

@@ -3,12 +3,11 @@ import {
   Keypair,
   PublicKey,
   SystemProgram,
-  Connection,
   TransactionMessage,
   VersionedTransaction,
 } from '@solana/web3.js';
 import { TransactionExecutor } from './transaction-executor.interface';
-import { logger } from '../helpers';
+import { CustomConnection, logger } from '../helpers';
 import axios, { AxiosError } from 'axios';
 import bs58 from 'bs58';
 import { Currency, CurrencyAmount } from '@raydium-io/raydium-sdk';
@@ -30,7 +29,7 @@ export class JitoTransactionExecutor implements TransactionExecutor {
 
   constructor(
     private readonly jitoFee: string,
-    private readonly connection: Connection,
+    private readonly connection: CustomConnection['connection'],
   ) {
     this.JitoFeeWallet = this.getRandomValidatorKey();
   }

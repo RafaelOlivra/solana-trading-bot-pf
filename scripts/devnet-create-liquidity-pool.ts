@@ -1,7 +1,7 @@
-import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { Keypair, PublicKey, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { NATIVE_MINT, TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { wrapSolToWSOL } from './devnet-wsol-wrapper-v2';
 import { Raydium, DEVNET_PROGRAM_ID, getCpmmPdaAmmConfigId, getAssociatedPoolKeys } from '@raydium-io/raydium-sdk-v2';
+import { CustomConnection } from '../helpers';
 import BN from 'bn.js';
 
 /**
@@ -15,11 +15,13 @@ import BN from 'bn.js';
  * @param decimals The number of decimals for the custom token.
  */
 export async function createLiquidityPool(
-  connection: Connection,
+  customConnection: CustomConnection,
   walletKp: Keypair,
   mintAddress: PublicKey,
   decimals: number,
 ) {
+  const connection = customConnection.getConnection();
+
   // Create a Raydium Liquidity Pool ---
   console.log('\nℹ️ Liquidity pool creation...');
 

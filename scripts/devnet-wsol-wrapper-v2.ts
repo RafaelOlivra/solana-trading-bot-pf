@@ -1,11 +1,5 @@
-import {
-  Connection,
-  Keypair,
-  Transaction,
-  sendAndConfirmTransaction,
-  SystemProgram,
-  LAMPORTS_PER_SOL,
-} from '@solana/web3.js';
+import { Keypair, Transaction, sendAndConfirmTransaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { CustomConnection } from '../helpers';
 import {
   createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddress,
@@ -22,7 +16,8 @@ import {
  * @param amount The amount of SOL to wrap (in SOL, not lamports).
  * @returns The PublicKey of the WSOL associated token account.
  */
-export async function wrapSolToWSOL(connection: Connection, payer: Keypair, amount: number) {
+export async function (customConnection: CustomConnection, payer: Keypair, amount: number) {
+  const connection = customConnection.getConnection();
   const wsolAta = await getAssociatedTokenAddress(NATIVE_MINT, payer.publicKey);
 
   // Create the associated token account for WSOL if it doesn't exist

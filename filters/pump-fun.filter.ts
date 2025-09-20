@@ -1,16 +1,16 @@
 import { Filter, FilterResult } from './pool-filters';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 import { LiquidityPoolKeysV4, getPdaMetadataKey } from '@raydium-io/raydium-sdk';
 import { MetadataAccountData, MetadataAccountDataArgs } from '@metaplex-foundation/mpl-token-metadata';
 import { Serializer } from '@metaplex-foundation/umi/serializers';
-import { logger } from '../helpers';
+import { logger, CustomConnection } from '../helpers';
 
 // Known Pump.fun update authority (may change)
 const PUMP_FUN_UPDATE_AUTHORITY = new PublicKey('pump111111111111111111111111111111111111111');
 
 export class PumpFunFilter implements Filter {
   constructor(
-    private readonly connection: Connection,
+    private readonly connection: CustomConnection['connection'],
     private readonly metadataSerializer: Serializer<MetadataAccountDataArgs, MetadataAccountData>,
   ) {}
 

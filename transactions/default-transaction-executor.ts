@@ -1,15 +1,9 @@
-import {
-  BlockhashWithExpiryBlockHeight,
-  Connection,
-  Keypair,
-  Transaction,
-  VersionedTransaction,
-} from '@solana/web3.js';
+import { BlockhashWithExpiryBlockHeight, Keypair, Transaction, VersionedTransaction } from '@solana/web3.js';
 import { TransactionExecutor } from './transaction-executor.interface';
 import { logger, CustomConnection } from '../helpers';
 
 export class DefaultTransactionExecutor implements TransactionExecutor {
-  private connection: Connection;
+  private connection: CustomConnection['connection'];
   constructor(private readonly customConnection: CustomConnection) {
     this.connection = this.customConnection.getConnection();
   }

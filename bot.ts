@@ -1,11 +1,4 @@
-import {
-  ComputeBudgetProgram,
-  Connection,
-  Keypair,
-  PublicKey,
-  TransactionMessage,
-  VersionedTransaction,
-} from '@solana/web3.js';
+import { ComputeBudgetProgram, Keypair, PublicKey, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import {
   createAssociatedTokenAccountIdempotentInstruction,
   createCloseAccountInstruction,
@@ -59,7 +52,7 @@ export interface BotConfig {
 }
 
 export class Bot {
-  private connection: Connection;
+  private connection: CustomConnection['connection'];
 
   private readonly poolFilters: PoolFilters;
 

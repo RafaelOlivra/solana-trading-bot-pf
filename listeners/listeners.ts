@@ -8,10 +8,10 @@ import {
 } from '@raydium-io/raydium-sdk';
 import { DEVNET_PROGRAM_ID as DEVNET_PROGRAM_ID_V2, CpmmPoolInfoLayout } from '@raydium-io/raydium-sdk-v2';
 import bs58 from 'bs58';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { EventEmitter } from 'events';
-import { logger, USE_SNIPE_LIST } from '../helpers';
+import { logger, USE_SNIPE_LIST, CustomConnection } from '../helpers';
 import BN from 'bn.js';
 
 export type ListenerConfig = {
@@ -33,12 +33,14 @@ export type MinimalCPMMPoolState = {
 
 export class Listeners extends EventEmitter {
   private subscriptions: number[] = [];
+  private connection: CustomConnection['connection'];
 
   private MARKET_PROGRAM_ID: ProgramId = MAINNET_PROGRAM_ID;
   private CONFIG: ListenerConfig | null = null;
 
-  constructor(private readonly connection: Connection) {
+  constructor(private readonly customConnection: CustomConnection) {
     super();
+    this.connection = this.customConnection.getConnection();
   }
 
   public async start(config: ListenerConfig | null = null) {

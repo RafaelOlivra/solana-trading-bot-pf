@@ -1,14 +1,13 @@
 import { Filter, FilterResult } from './pool-filters';
 import { MintLayout } from '@solana/spl-token';
-import { Connection } from '@solana/web3.js';
 import { LiquidityPoolKeysV4 } from '@raydium-io/raydium-sdk';
-import { logger } from '../helpers';
+import { CustomConnection, logger } from '../helpers';
 
 export class RenouncedFreezeFilter implements Filter {
   private readonly errorMessage: string[] = [];
 
   constructor(
-    private readonly connection: Connection,
+    private readonly connection: CustomConnection['connection'],
     private readonly checkRenounced: boolean,
     private readonly checkFreezable: boolean,
   ) {

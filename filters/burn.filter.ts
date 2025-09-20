@@ -1,10 +1,9 @@
 import { Filter, FilterResult } from './pool-filters';
-import { Connection } from '@solana/web3.js';
 import { LiquidityPoolKeysV4 } from '@raydium-io/raydium-sdk';
-import { logger } from '../helpers';
+import { CustomConnection, logger } from '../helpers';
 
 export class BurnFilter implements Filter {
-  constructor(private readonly connection: Connection) {}
+  constructor(private readonly connection: CustomConnection['connection']) {}
 
   async execute(poolKeys: LiquidityPoolKeysV4): Promise<FilterResult> {
     try {
