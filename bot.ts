@@ -398,6 +398,16 @@ export class Bot {
               },
               `Confirmed sell tx`,
             );
+
+            // Add to the avoid list if enabled
+            if (this.config.useAvoidList && this.avoidListCache) {
+              const date = new Date();
+              this.avoidListCache.add(
+                rawAccount.mint.toString(),
+                `[${date.toISOString()}][SELL] Added to avoid list after sell`,
+              );
+            }
+
             break; // Success, exit loop
           }
 
@@ -581,9 +591,14 @@ export class Bot {
           slippage,
         }).amountOut;
 
+        const startingPrice = this.config.quoteAmount.toFixed();
+        const currentPrice = amountOut.toFixed();
+        const priceChangePct =
+          ((parseFloat(currentPrice) - parseFloat(startingPrice)) / parseFloat(startingPrice)) * 100;
+
         logger.debug(
           { mint: poolKeys.baseMint.toString() },
-          `TP: ${takeProfit.toFixed()} | SL: ${stopLoss.toFixed()} | CP: ${amountOut.toFixed()} | CH: ${timesChecked}/${timesToCheck}`,
+          `TP: ${takeProfit.toFixed()} | SL: ${stopLoss.toFixed()} | CP: ${currentPrice} [${priceChangePct.toFixed(2)}%] | CH: ${timesChecked}/${timesToCheck}`,
         );
 
         if (amountOut.lt(stopLoss)) {
