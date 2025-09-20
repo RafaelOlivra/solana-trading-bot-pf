@@ -26,6 +26,7 @@ const customConnection = new CustomConnection([
 ]);
 
 const connection = customConnection.getConnection();
+
 // Path to the wallet file
 const WALLET_FILE = './tmp/devnet-wallet.json';
 
