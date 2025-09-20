@@ -58,6 +58,6 @@ export class MarketCache {
   }
 
   private fetch(marketId: string): Promise<MinimalMarketLayoutV3> {
-    return getMinimalMarketV3(this.connection, new PublicKey(marketId), this.connection.commitment);
+    return getMinimalMarketV3(this.customConnection, new PublicKey(marketId));
   }
 }

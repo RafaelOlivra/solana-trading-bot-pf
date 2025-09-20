@@ -9,11 +9,10 @@ export type MinimalMarketLayoutV3 = GetStructureSchema<MinimalMarketStateLayoutV
 export async function getMinimalMarketV3(
   customConnection: CustomConnection,
   marketId: PublicKey,
-  commitment?: Commitment,
 ): Promise<MinimalMarketLayoutV3> {
   const connection = customConnection.getConnection();
   const marketInfo = await connection.getAccountInfo(marketId, {
-    commitment,
+    commitment: connection.commitment,
     dataSlice: {
       offset: MARKET_STATE_LAYOUT_V3.offsetOf('eventQueue'),
       length: 32 * 3,

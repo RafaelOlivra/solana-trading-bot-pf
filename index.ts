@@ -18,11 +18,8 @@ import {
   logger,
   COMMITMENT_LEVEL,
   NETWORK,
-  RPC_ENDPOINT,
-  RPC_WEBSOCKET_ENDPOINT,
   PRE_LOAD_EXISTING_MARKETS,
   LOG_LEVEL,
-  CHECK_IF_MUTABLE,
   CHECK_IF_MINT_IS_RENOUNCED,
   CHECK_IF_FREEZABLE,
   CHECK_IF_BURNED,
@@ -85,11 +82,19 @@ function printDetails(wallet: Keypair, quoteToken: Token, bot: Bot) {
   const botConfig = bot.config;
 
   logger.info('------- CONFIGURATION START -------');
+  logger.info('');
   logger.info(`Wallet: ${wallet.publicKey.toString()}`);
   logger.info(`Network: ${NETWORK}`);
-  logger.info(`RPC endpoint: ${RPC_ENDPOINT}`);
-  logger.info(`WebSocket RPC endpoint: ${RPC_WEBSOCKET_ENDPOINT}`);
   logger.info(`Commitment level: ${COMMITMENT_LEVEL}`);
+  logger.info('');
+
+  logger.info('- Connections -');
+  customConnection.listConnections().forEach((connection, index) => {
+    logger.info(` Connection ${index + 1}:`);
+    logger.info(` └  RPC Endpoint: ${connection.rpcEndpoint}`);
+    logger.info(` └  WebSocket Endpoint: ${connection.rpcWsEndpoint}`);
+  });
+  logger.info('');
 
   logger.info('- Bot -');
 
@@ -107,6 +112,7 @@ function printDetails(wallet: Keypair, quoteToken: Token, bot: Bot) {
   logger.info(`Pre load existing markets: ${PRE_LOAD_EXISTING_MARKETS}`);
   logger.info(`Cache new markets: ${CACHE_NEW_MARKETS}`);
   logger.info(`Log level: ${LOG_LEVEL}`);
+  logger.info('');
 
   logger.info('- Buy -');
   logger.info(`Buy amount: ${botConfig.quoteAmount.toFixed()} ${botConfig.quoteToken.name}`);
@@ -114,6 +120,7 @@ function printDetails(wallet: Keypair, quoteToken: Token, bot: Bot) {
   logger.info(`Max buy retries: ${botConfig.maxBuyRetries}`);
   logger.info(`Buy amount (${quoteToken.symbol}): ${botConfig.quoteAmount.toFixed()}`);
   logger.info(`Buy slippage: ${botConfig.buySlippage}%`);
+  logger.info('');
 
   logger.info('- Sell -');
   logger.info(`Auto sell: ${AUTO_SELL}`);
@@ -124,10 +131,12 @@ function printDetails(wallet: Keypair, quoteToken: Token, bot: Bot) {
   logger.info(`Price check duration: ${botConfig.priceCheckDuration} ms`);
   logger.info(`Take profit: ${botConfig.takeProfit}%`);
   logger.info(`Stop loss: ${botConfig.stopLoss}%`);
+  logger.info('');
 
   logger.info('- Snipe list -');
   logger.info(`Snipe list: ${botConfig.useSnipeList}`);
   logger.info(`Snipe list refresh interval: ${SNIPE_LIST_REFRESH_INTERVAL} ms`);
+  logger.info('');
 
   if (botConfig.useSnipeList) {
     logger.info('- Filters -');
@@ -144,6 +153,7 @@ function printDetails(wallet: Keypair, quoteToken: Token, bot: Bot) {
     logger.info(`Min pool size: ${botConfig.minPoolSize.toFixed()}`);
     logger.info(`Max pool size: ${botConfig.maxPoolSize.toFixed()}`);
   }
+  logger.info('');
 
   logger.info('------- CONFIGURATION END -------');
 

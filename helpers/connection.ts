@@ -21,6 +21,7 @@ const VALID_COMMITMENTS: Commitment[] = ['processed', 'confirmed', 'finalized'];
 export class CustomConnection {
   private connection: Connection;
   private connections: ConnectionArgs[];
+  private lastIndex: number | null = null; // track last used index
 
   constructor(connectionArgs?: ConnectionArgs[]) {
     this.validateCommitmentLevel();
@@ -67,10 +68,26 @@ export class CustomConnection {
   }
 
   /**
-   * Pick a random connection from available ones
+   * Pick a random connection from available ones,
+   * ensuring it's not the same as the last one
    */
   private getRandomConnection(): Connection {
-    const connection = this.connections[Math.floor(Math.random() * this.connections.length)];
+    if (this.connections.length === 1) {
+      // Only one available → always reuse
+      this.lastIndex = 0;
+      return new Connection(this.connections[0].rpcEndpoint, {
+        commitment: this.connections[0].commitmentLevel,
+        wsEndpoint: this.connections[0].rpcWsEndpoint,
+      } as ConnectionConfig);
+    }
+
+    let index: number;
+    do {
+      index = Math.floor(Math.random() * this.connections.length);
+    } while (index === this.lastIndex);
+
+    this.lastIndex = index;
+    const connection = this.connections[index];
 
     return new Connection(connection.rpcEndpoint, {
       commitment: connection.commitmentLevel,
@@ -87,9 +104,17 @@ export class CustomConnection {
 
   /**
    * Refresh connection (e.g., in case of RPC failure)
+   * Ensures new connection is not the same as the last one
    */
   public refreshConnection(): Connection {
     this.connection = this.getRandomConnection();
     return this.connection;
+  }
+
+  /**
+   * List all available connection configurations
+   */
+  public listConnections(): ConnectionArgs[] {
+    return this.connections;
   }
 }
