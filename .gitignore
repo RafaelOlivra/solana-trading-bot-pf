@@ -138,7 +138,7 @@ pnpm-lock.yaml
 # Visual Studio Code 
 *.code-workspace
 
-# Snipe list
+# Lists
 snipe-list.txt
 avoid-list.txt
 pool-cache.txt
