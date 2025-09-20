@@ -144,8 +144,8 @@ export class Listeners extends EventEmitter {
 
           const poolState: MinimalCPMMPoolState = {
             accountId: updatedAccountInfo.accountId,
-            baseMint: decoded.mintB,
-            quoteMint: decoded.mintA,
+            baseMint: decoded.mintA,
+            quoteMint: decoded.mintB,
             lpMint: decoded.mintLp,
             poolOpenTime: decoded.openTime,
             isCpmm: true,

@@ -33,15 +33,16 @@ export async function createLiquidityPool(
   });
 
   // prepare mints (example: your token + WSOL)
-  const mintA = await raydium.token.getTokenInfo(mintAddress.toBase58());
-  const mintAAmount = new BN(100 * 10 ** decimals);
 
-  const mintB = {
+  const mintA = {
     address: NATIVE_MINT.toBase58(),
     decimals: 9,
     programId: TOKEN_PROGRAM_ID.toBase58(),
   }; // WSOL
-  const mintBAmount = new BN(0.1 * LAMPORTS_PER_SOL);
+  const mintAAmount = new BN(0.1 * LAMPORTS_PER_SOL);
+
+  const mintB = await raydium.token.getTokenInfo(mintAddress.toBase58());
+  const mintBAmount = new BN(100 * 10 ** decimals);
 
   // 2. Fetch available fee configs
   const feeConfigs = await raydium.api.getCpmmConfigs();
