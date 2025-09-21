@@ -146,7 +146,7 @@ pool-cache.txt
 # Temporary folders
 tmp/
 temp/
-snipe-list.txt
+scripts/playground.ts
 
 # Misc
 *.bkp

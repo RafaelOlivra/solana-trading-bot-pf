@@ -362,7 +362,7 @@ export class Bot {
       const market = await this.marketStorage.get(poolData.state.marketId.toString());
       const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(new PublicKey(poolData.id), poolData.state, market);
 
-      await this.priceMatch(tokenAmountIn, poolKeys);
+      const { startingPrice, currentPrice, priceChangePct } = await this.priceMatch(tokenAmountIn, poolKeys);
 
       for (let i = 0; i < this.config.maxSellRetries; i++) {
         try {
@@ -404,7 +404,7 @@ export class Bot {
               const date = new Date();
               this.avoidListCache.add(
                 rawAccount.mint.toString(),
-                `[${date.toISOString()}][SELL] Added to avoid list after sell`,
+                `[${date.toISOString()}][SELL][${priceChangePct.toFixed(2)}%] Added token to avoid list after sell`,
               );
             }
 
@@ -561,8 +561,12 @@ export class Bot {
   }
 
   private async priceMatch(amountIn: TokenAmount, poolKeys: LiquidityPoolKeysV4) {
+    const startingPrice = this.config.quoteAmount.toFixed();
+    let currentPrice = startingPrice;
+    let priceChangePct = 0;
+
     if (this.config.priceCheckDuration === 0 || this.config.priceCheckInterval === 0) {
-      return;
+      return { startingPrice, currentPrice, priceChangePct };
     }
 
     const timesToCheck = Math.floor(this.config.priceCheckDuration / this.config.priceCheckInterval);
@@ -591,10 +595,8 @@ export class Bot {
           slippage,
         }).amountOut;
 
-        const startingPrice = this.config.quoteAmount.toFixed();
-        const currentPrice = amountOut.toFixed();
-        const priceChangePct =
-          ((parseFloat(currentPrice) - parseFloat(startingPrice)) / parseFloat(startingPrice)) * 100;
+        currentPrice = amountOut.toFixed();
+        priceChangePct = ((parseFloat(currentPrice) - parseFloat(startingPrice)) / parseFloat(startingPrice)) * 100;
 
         logger.debug(
           { mint: poolKeys.baseMint.toString() },
@@ -616,6 +618,8 @@ export class Bot {
         timesChecked++;
       }
     } while (timesChecked < timesToCheck);
+
+    return { startingPrice, currentPrice, priceChangePct };
   }
 
   /**
