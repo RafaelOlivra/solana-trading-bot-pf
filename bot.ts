@@ -99,15 +99,23 @@ export class Bot {
   }
 
   async validate() {
-    try {
-      await getAccount(this.connection, this.config.quoteAta, this.connection.commitment);
-    } catch (error) {
-      logger.error(
-        `${this.config.quoteToken.symbol} token account not found in wallet: ${this.config.wallet.publicKey.toString()}`,
-      );
-      return false;
+    let retries = 5;
+    while (retries > 0) {
+      try {
+        await getAccount(this.connection, this.config.quoteAta, this.connection.commitment);
+        break;
+      } catch (e) {
+        retries--;
+        if (retries === 0) {
+          logger.error(
+            `${this.config.quoteToken.symbol} token account not found in wallet: ${this.config.wallet.publicKey.toString()}`,
+          );
+          return false;
+        }
+        // Refresh connection in case of error
+        this.refreshConnection();
+      }
     }
-
     return true;
   }
 
