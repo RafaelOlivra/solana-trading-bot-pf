@@ -200,19 +200,25 @@ export class Bot {
     // Use a flag to indicate we must cleanup (release mutex + restart listeners) in finally
     const mustCleanup = this.config.oneTokenAtATime;
 
-    // Buy only if market exists
-    if (poolState.marketId) {
-      try {
-        const [market, mintAta] = await Promise.all([
-          this.marketStorage.get(poolState.marketId.toString()),
-          getAssociatedTokenAddress(poolState.baseMint, this.config.wallet.publicKey),
-        ]);
+    try {
+      const mintAta = await getAssociatedTokenAddress(poolState.baseMint, this.config.wallet.publicKey);
+      const baseDecimalsRaw: any = (poolState as any).baseDecimals ?? (poolState as any).baseDecimal;
+      const baseDecimals = typeof baseDecimalsRaw === 'number' ? baseDecimalsRaw : baseDecimalsRaw?.toNumber?.() ?? 0;
+      const tokenOut = new Token(TOKEN_PROGRAM_ID, poolState.baseMint, baseDecimals);
+
+      // Check if it's a standard AMM pool or a CPMM pool
+      if (poolState.marketId) {
+        // Standard LP Pool
+        const market = await this.marketStorage.get(poolState.marketId.toString());
+        if (!market) {
+          logger.debug({ mint: poolState.baseMint.toString() }, `Skipping buy because market data not found`);
+          return;
+        }
 
         const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(accountId, poolState, market);
 
         if (!this.config.useSnipeList) {
           const match = await this.filterMatch(poolKeys);
-
           if (!match) {
             logger.trace({ mint: poolKeys.baseMint.toString() }, `Skipping buy because pool doesn't match filters`);
             return;
@@ -223,11 +229,8 @@ export class Bot {
           try {
             logger.info(
               { mint: poolState.baseMint.toString() },
-              `Send buy transaction attempt: ${i + 1}/${this.config.maxBuyRetries}`,
+              `Send buy transaction attempt (LP): ${i + 1}/${this.config.maxBuyRetries}`,
             );
-
-            // Try to see some common errors before buying
-            const tokenOut = new Token(TOKEN_PROGRAM_ID, poolKeys.baseMint, poolKeys.baseDecimals);
 
             const result = await this.swap(
               poolKeys,
@@ -253,76 +256,118 @@ export class Bot {
                   signature: result.signature,
                   url: `https://solscan.io/tx/${result.signature}?cluster=${NETWORK}`,
                 },
-                `Confirmed buy tx`,
+                `Confirmed LP buy tx`,
               );
               break;
             }
 
-            // If result exists but not confirmed, log details
             logger.info(
               {
                 mint: poolState.baseMint.toString(),
                 signature: result.signature,
                 error: result.error,
               },
-              `Error confirming buy tx`,
+              `Error confirming LP buy tx`,
             );
           } catch (error) {
-            // Log error and continue to retry
             await this.logSendTransactionError(
               error,
               { mint: poolState.baseMint.toString() },
-              'Error confirming buy transaction',
+              'Error confirming LP buy transaction',
             );
-
-            // Refresh connection in case of error
             this.refreshConnection();
           }
         }
-      } catch (error) {
-        logger.error({ mint: poolState.baseMint.toString(), error }, `Failed to buy token`);
-      } finally {
-        if (mustCleanup) {
-          if (acquiredMutex) {
-            try {
-              this.mutex.release();
-            } catch (e) {
-              logger.error({ e }, 'Error releasing mutex in buy finally');
-            }
-          }
-          if (listenersStopped) {
-            try {
-              await listeners.start();
-            } catch (e) {
-              logger.error({ e }, 'Failed to restart listeners after buy; continuing');
-            }
+      } else {
+        // CPMM Pool
+        logger.debug({ mint: poolState.baseMint.toString() }, `Found CPMM pool, processing buy...`);
+        const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(accountId, poolState); // No market for CPMM
+
+        if (!this.config.useSnipeList) {
+          // You may want to implement filterMatch logic for CPMM pools as well
+          const match = await this.poolFilters.execute(poolKeys);
+          if (!match) {
+            logger.trace(
+              { mint: poolKeys.baseMint.toString() },
+              `Skipping buy because CPMM pool doesn't match filters`,
+            );
+            return;
           }
         }
-        return;
+
+        for (let i = 0; i < this.config.maxBuyRetries; i++) {
+          try {
+            logger.info(
+              { mint: poolState.baseMint.toString() },
+              `Send buy transaction attempt (CPMM): ${i + 1}/${this.config.maxBuyRetries}`,
+            );
+
+            const result = await this.swapCpmm(
+              poolKeys,
+              this.config.quoteAta,
+              mintAta,
+              this.config.quoteToken,
+              tokenOut,
+              this.config.quoteAmount,
+              this.config.buySlippage,
+              this.config.wallet,
+              'buy',
+            );
+
+            if (!result) {
+              logger.warn({ mint: poolState.baseMint.toString() }, `Swap returned empty result, skipping`);
+              break;
+            }
+
+            if (result.confirmed) {
+              logger.info(
+                {
+                  mint: poolState.baseMint.toString(),
+                  signature: result.signature,
+                  url: `https://solscan.io/tx/${result.signature}?cluster=${NETWORK}`,
+                },
+                `Confirmed CPMM buy tx`,
+              );
+              break;
+            }
+
+            logger.info(
+              {
+                mint: poolState.baseMint.toString(),
+                signature: result.signature,
+                error: result.error,
+              },
+              `Error confirming CPMM buy tx`,
+            );
+          } catch (error) {
+            await this.logSendTransactionError(
+              error,
+              { mint: poolState.baseMint.toString() },
+              'Error confirming CPMM buy transaction',
+            );
+            this.refreshConnection();
+          }
+        }
       }
-    }
-    // We got a CPMM pool without market id
-    else {
-      logger.debug({ mint: poolState.baseMint.toString() }, `Skipping buy because pool has no market (CPMM)`);
-      if (this.config.oneTokenAtATime) {
-        // Only release if we actually acquired it
+    } catch (error) {
+      logger.error({ mint: poolState.baseMint.toString(), error }, `Failed to buy token`);
+    } finally {
+      if (mustCleanup) {
         if (acquiredMutex) {
           try {
             this.mutex.release();
           } catch (e) {
-            logger.error({ e }, 'Error releasing mutex after CPMM skip');
+            logger.error({ e }, 'Error releasing mutex in buy finally');
           }
         }
-        // Only start listeners if we actually stopped them earlier
         if (listenersStopped) {
           try {
             await listeners.start();
           } catch (e) {
-            logger.error({ e }, 'Failed to restart listeners after CPMM skip; continuing');
+            logger.error({ e }, 'Failed to restart listeners after buy; continuing');
           }
         }
       }
-      return;
     }
   }
 
@@ -353,8 +398,10 @@ export class Bot {
         logger.trace({ mint: rawAccount.mint.toString() }, `Token pool data is not found, can't sell`);
         return;
       }
-
-      const tokenIn = new Token(TOKEN_PROGRAM_ID, poolData.state.baseMint, poolData.state.baseDecimal.toNumber());
+      const poolState = poolData.state;
+      const baseDecimalsRaw: any = (poolState as any).baseDecimals ?? (poolState as any).baseDecimal;
+      const baseDecimals = typeof baseDecimalsRaw === 'number' ? baseDecimalsRaw : baseDecimalsRaw?.toNumber?.() ?? 0;
+      const tokenIn = new Token(TOKEN_PROGRAM_ID, poolState.baseMint, baseDecimals);
       const tokenAmountIn = new TokenAmount(tokenIn, rawAccount.amount, true);
 
       if (tokenAmountIn.isZero()) {
@@ -367,71 +414,131 @@ export class Bot {
         await sleep(this.config.autoSellDelay);
       }
 
-      const market = await this.marketStorage.get(poolData.state.marketId.toString());
-      const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(new PublicKey(poolData.id), poolData.state, market);
+      // Check if it's a standard LP pool or a CPMM pool
+      if (poolState.marketId) {
+        // Standard LP Pool
+        const market = await this.marketStorage.get(poolState.marketId.toString());
+        const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(new PublicKey(poolData.id), poolState, market);
+        const { startingPrice, currentPrice, priceChangePct } = await this.priceMatch(tokenAmountIn, poolKeys);
 
-      const { startingPrice, currentPrice, priceChangePct } = await this.priceMatch(tokenAmountIn, poolKeys);
-
-      for (let i = 0; i < this.config.maxSellRetries; i++) {
-        try {
-          logger.info(
-            { mint: rawAccount.mint },
-            `Send sell transaction attempt: ${i + 1}/${this.config.maxSellRetries}`,
-          );
-
-          const result = await this.swap(
-            poolKeys,
-            accountId,
-            this.config.quoteAta,
-            tokenIn,
-            this.config.quoteToken,
-            tokenAmountIn,
-            this.config.sellSlippage,
-            this.config.wallet,
-            'sell',
-          );
-
-          if (!result) {
-            logger.warn({ mint: rawAccount.mint.toString() }, `Swap returned empty result, skipping`);
-            break;
-          }
-
-          if (result.confirmed) {
+        for (let i = 0; i < this.config.maxSellRetries; i++) {
+          try {
             logger.info(
-              {
-                dex: `https://dexscreener.com/solana/${rawAccount.mint.toString()}?maker=${this.config.wallet.publicKey}`,
-                mint: rawAccount.mint.toString(),
-                signature: result.signature,
-                url: `https://solscan.io/tx/${result.signature}?cluster=${NETWORK}`,
-              },
-              `Confirmed sell tx`,
+              { mint: rawAccount.mint },
+              `Send sell transaction attempt (LP): ${i + 1}/${this.config.maxSellRetries}`,
             );
 
-            // Add to the avoid list if enabled
-            if (this.config.useAvoidList && this.avoidListCache) {
-              const date = new Date();
-              this.avoidListCache.add(
-                rawAccount.mint.toString(),
-                `[${date.toISOString()}][SELL][${priceChangePct.toFixed(2)}%] Added token to avoid list after sell`,
-              );
+            const result = await this.swap(
+              poolKeys,
+              accountId,
+              this.config.quoteAta,
+              tokenIn,
+              this.config.quoteToken,
+              tokenAmountIn,
+              this.config.sellSlippage,
+              this.config.wallet,
+              'sell',
+            );
+
+            if (!result) {
+              logger.warn({ mint: rawAccount.mint.toString() }, `Swap returned empty result, skipping`);
+              break;
             }
+            if (result.confirmed) {
+              logger.info(
+                {
+                  dex: `https://dexscreener.com/solana/${rawAccount.mint.toString()}?maker=${this.config.wallet.publicKey}`,
+                  mint: rawAccount.mint.toString(),
+                  signature: result.signature,
+                  url: `https://solscan.io/tx/${result.signature}?cluster=${NETWORK}`,
+                },
+                `Confirmed LP sell tx`,
+              );
 
-            break; // Success, exit loop
+              // Add to the avoid list if enabled
+              if (this.config.useAvoidList && this.avoidListCache) {
+                const date = new Date();
+                this.avoidListCache.add(
+                  rawAccount.mint.toString(),
+                  `[${date.toISOString()}][SELL][${priceChangePct.toFixed(2)}%] Added token to avoid list after sell`,
+                );
+              }
+              break;
+            }
+            logger.info(
+              { mint: rawAccount.mint.toString(), signature: result.signature, error: result.error },
+              `Error confirming LP sell tx`,
+            );
+          } catch (error) {
+            await this.logSendTransactionError(
+              error,
+              { mint: rawAccount.mint.toString() },
+              'Error confirming LP sell transaction',
+            );
+            this.refreshConnection();
           }
+        }
+      } else {
+        // CPMM Pool
+        logger.debug({ mint: rawAccount.mint.toString() }, `Found CPMM pool, processing sell...`);
+        const poolKeys: LiquidityPoolKeysV4 = createPoolKeys(new PublicKey(poolData.id), poolData.state, undefined);
+        const { startingPrice, currentPrice, priceChangePct } = await this.priceMatch(tokenAmountIn, poolKeys);
 
-          logger.info(
-            { mint: rawAccount.mint.toString(), signature: result.signature, error: result.error },
-            `Error confirming sell tx`,
-          );
-        } catch (error) {
-          await this.logSendTransactionError(
-            error,
-            { mint: rawAccount.mint.toString() },
-            'Error confirming sell transaction',
-          );
+        for (let i = 0; i < this.config.maxSellRetries; i++) {
+          try {
+            logger.info(
+              { mint: rawAccount.mint },
+              `Send sell transaction attempt (CPMM): ${i + 1}/${this.config.maxSellRetries}`,
+            );
 
-          // Refresh connection in case of error
-          this.refreshConnection();
+            const result = await this.swapCpmm(
+              poolKeys,
+              accountId,
+              this.config.quoteAta,
+              tokenIn,
+              this.config.quoteToken,
+              tokenAmountIn,
+              this.config.sellSlippage,
+              this.config.wallet,
+              'sell',
+            );
+
+            if (!result) {
+              logger.warn({ mint: rawAccount.mint.toString() }, `Swap returned empty result, skipping`);
+              break;
+            }
+            if (result.confirmed) {
+              logger.info(
+                {
+                  dex: `https://dexscreener.com/solana/${rawAccount.mint.toString()}?maker=${this.config.wallet.publicKey}`,
+                  mint: rawAccount.mint.toString(),
+                  signature: result.signature,
+                  url: `https://solscan.io/tx/${result.signature}?cluster=${NETWORK}`,
+                },
+                `Confirmed CPMM sell tx`,
+              );
+              if (this.config.useAvoidList && this.avoidListCache) {
+                const date = new Date();
+                this.avoidListCache.add(
+                  rawAccount.mint.toString(),
+                  `[${date.toISOString()}][SELL][${priceChangePct.toFixed(2)}%] Added token to avoid list after sell`,
+                );
+              }
+              break; // Success, exit loop
+            }
+            logger.info(
+              { mint: rawAccount.mint.toString(), signature: result.signature, error: result.error },
+              `Error confirming CPMM sell tx`,
+            );
+          } catch (error) {
+            await this.logSendTransactionError(
+              error,
+              { mint: rawAccount.mint.toString() },
+              'Error confirming CPMM sell transaction',
+            );
+            // Refresh connection in case of error
+            this.refreshConnection();
+          }
         }
       }
     } catch (error) {
@@ -439,7 +546,6 @@ export class Bot {
     } finally {
       if (this.config.oneTokenAtATime) {
         this.sellExecutionCount--;
-
         // Only restart listeners if we actually stopped them earlier
         if (listenersStopped) {
           try {
@@ -562,21 +668,25 @@ export class Bot {
       slippage: slippagePercent,
     });
 
-    const latestBlockhash = await this.connection.getLatestBlockhash();
+    const minAmountOutRaw = computedAmountOut.minAmountOut.raw;
 
-    const { innerTransaction } = Liquidity.makeSwapFixedInInstruction(
-      {
-        poolKeys: poolKeys,
-        userKeys: {
-          tokenAccountIn: ataIn,
-          tokenAccountOut: ataOut,
-          owner: wallet.publicKey,
-        },
-        amountIn: amountIn.raw,
-        minAmountOut: computedAmountOut.minAmountOut.raw,
-      },
-      poolKeys.version,
-    );
+    // Proper userKeys for CPMM swap
+    const userKeys = {
+      tokenAccountIn: ataIn,
+      tokenAccountOut: ataOut,
+      owner: wallet.publicKey,
+    };
+
+    const { innerTransaction } = Liquidity.makeSwapInstruction({
+      poolKeys: poolKeys,
+      userKeys,
+      amountIn: amountIn.raw,
+      amountOut: minAmountOutRaw,
+      fixedSide: 'in',
+      // version: 5,
+    });
+
+    const latestBlockhash = await this.connection.getLatestBlockhash();
 
     const messageV0 = new TransactionMessage({
       payerKey: wallet.publicKey,

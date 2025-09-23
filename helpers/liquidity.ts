@@ -5,7 +5,7 @@ import { MinimalMarketLayoutV3 } from './market';
 export function createPoolKeys(
   id: PublicKey,
   accountData: LiquidityStateV4,
-  minimalMarketLayoutV3: MinimalMarketLayoutV3,
+  minimalMarketLayoutV3?: MinimalMarketLayoutV3 | null, // <-- optional
 ): LiquidityPoolKeys {
   return {
     id,
@@ -27,15 +27,17 @@ export function createPoolKeys(
     marketVersion: 3,
     marketProgramId: accountData.marketProgramId,
     marketId: accountData.marketId,
-    marketAuthority: Market.getAssociatedAuthority({
-      programId: accountData.marketProgramId,
-      marketId: accountData.marketId,
-    }).publicKey,
+    marketAuthority: accountData.marketId
+      ? Market.getAssociatedAuthority({
+          programId: accountData.marketProgramId,
+          marketId: accountData.marketId,
+        }).publicKey
+      : PublicKey.default, // safe fallback
     marketBaseVault: accountData.baseVault,
     marketQuoteVault: accountData.quoteVault,
-    marketBids: minimalMarketLayoutV3.bids,
-    marketAsks: minimalMarketLayoutV3.asks,
-    marketEventQueue: minimalMarketLayoutV3.eventQueue,
+    marketBids: minimalMarketLayoutV3?.bids ?? PublicKey.default,
+    marketAsks: minimalMarketLayoutV3?.asks ?? PublicKey.default,
+    marketEventQueue: minimalMarketLayoutV3?.eventQueue ?? PublicKey.default,
     withdrawQueue: accountData.withdrawQueue,
     lpVault: accountData.lpVault,
     lookupTableAccount: PublicKey.default,
