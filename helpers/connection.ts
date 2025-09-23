@@ -1,5 +1,6 @@
 import { Connection, Commitment, ConnectionConfig } from '@solana/web3.js';
 import { COMMITMENT_LEVEL, RPC_ENDPOINT, RPC_WEBSOCKET_ENDPOINT } from './constants';
+import { logger } from './helpers';
 
 type ConnectionArgs = {
   rpcEndpoint: string;
@@ -81,6 +82,7 @@ export class CustomConnection {
       } as ConnectionConfig);
     }
 
+    // Pick a different Connection than the last one
     let index: number;
     do {
       index = Math.floor(Math.random() * this.connections.length);
@@ -89,10 +91,23 @@ export class CustomConnection {
     this.lastIndex = index;
     const connection = this.connections[index];
 
+    logger.info(`Using RPC Endpoint: ${connection.rpcEndpoint} with WS: ${connection.rpcWsEndpoint}`);
+
     return new Connection(connection.rpcEndpoint, {
       commitment: connection.commitmentLevel,
       wsEndpoint: connection.rpcWsEndpoint,
     } as ConnectionConfig);
+  }
+  /**
+   * Revert to a default Solana connection
+   * (e.g., in case all custom RPCs fail)
+   */
+  public setDefaultSolanaConnection(): void {
+    this.connection = new Connection('https://api.mainnet-beta.solana.com', {
+      commitment: 'confirmed',
+      wsEndpoint: 'wss://api.mainnet-beta.solana.com',
+    } as ConnectionConfig);
+    logger.warn('Reverted to default Solana connection');
   }
 
   /**
@@ -105,8 +120,15 @@ export class CustomConnection {
   /**
    * Refresh connection (e.g., in case of RPC failure)
    * Ensures new connection is not the same as the last one
+   * @param useDefault If true, revert to default Solana connection
+   * @returns The new Connection instance
    */
-  public refreshConnection(): Connection {
+  public refreshConnection(useDefault: boolean = false): Connection {
+    if (useDefault) {
+      this.setDefaultSolanaConnection();
+      return this.connection;
+    }
+
     this.connection = this.getRandomConnection();
     return this.connection;
   }

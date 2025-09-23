@@ -523,6 +523,80 @@ export class Bot {
     return this.txExecutor.executeAndConfirm(transaction, wallet, latestBlockhash);
   }
 
+  private async swapCpmm(
+    poolKeys: LiquidityPoolKeysV4,
+    ataIn: PublicKey,
+    ataOut: PublicKey,
+    tokenIn: Token,
+    tokenOut: Token,
+    amountIn: TokenAmount,
+    slippage: number,
+    wallet: Keypair,
+    direction: 'buy' | 'sell',
+  ) {
+    const slippagePercent = new Percent(slippage, 100);
+
+    const poolInfo = await Liquidity.fetchInfo({
+      connection: this.connection,
+      poolKeys,
+    });
+
+    if (amountIn.isZero() || amountIn.raw.lte(new BN(0))) {
+      logger.warn('AmountIn is zero, skipping CPMM swap');
+      return;
+    }
+
+    const computedAmountOut = Liquidity.computeAmountOut({
+      poolKeys,
+      poolInfo,
+      amountIn,
+      currencyOut: tokenOut,
+      slippage: slippagePercent,
+    });
+
+    const latestBlockhash = await this.connection.getLatestBlockhash();
+
+    const { innerTransaction } = Liquidity.makeSwapFixedInInstruction(
+      {
+        poolKeys: poolKeys,
+        userKeys: {
+          tokenAccountIn: ataIn,
+          tokenAccountOut: ataOut,
+          owner: wallet.publicKey,
+        },
+        amountIn: amountIn.raw,
+        minAmountOut: computedAmountOut.minAmountOut.raw,
+      },
+      poolKeys.version,
+    );
+
+    const messageV0 = new TransactionMessage({
+      payerKey: wallet.publicKey,
+      recentBlockhash: latestBlockhash.blockhash,
+      instructions: [
+        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: this.config.unitPrice }),
+        ComputeBudgetProgram.setComputeUnitLimit({ units: this.config.unitLimit }),
+        ...(direction === 'buy'
+          ? [
+              createAssociatedTokenAccountIdempotentInstruction(
+                wallet.publicKey,
+                ataOut,
+                wallet.publicKey,
+                tokenOut.mint,
+              ),
+            ]
+          : []),
+        ...innerTransaction.instructions,
+        ...(direction === 'sell' ? [createCloseAccountInstruction(ataIn, wallet.publicKey, wallet.publicKey)] : []),
+      ],
+    }).compileToV0Message();
+
+    const transaction = new VersionedTransaction(messageV0);
+    transaction.sign([wallet, ...innerTransaction.signers]);
+
+    return this.txExecutor.executeAndConfirm(transaction, wallet, latestBlockhash);
+  }
+
   private async filterMatch(poolKeys: LiquidityPoolKeysV4) {
     if (this.config.filterCheckInterval === 0 || this.config.filterCheckDuration === 0) {
       return true;
@@ -625,12 +699,12 @@ export class Bot {
   /**
    * Refresh connection and transaction executor connection if enabled in config
    */
-  private refreshConnection() {
+  private refreshConnection(useDefault: boolean = false) {
     if (this.config.refreshConnectionOnError) {
-      this.connection = this.customConnection.refreshConnection();
+      this.connection = this.customConnection.refreshConnection(useDefault);
 
       if (this.txExecutor instanceof DefaultTransactionExecutor) {
-        this.txExecutor.refreshConnection();
+        this.txExecutor.refreshConnection(useDefault);
       }
     }
   }

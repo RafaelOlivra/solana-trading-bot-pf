@@ -39,7 +39,7 @@ export class DefaultTransactionExecutor implements TransactionExecutor {
     return { confirmed: !confirmation.value.err, signature };
   }
 
-  public refreshConnection() {
-    this.connection = this.customConnection.refreshConnection();
+  public refreshConnection(useDefault: boolean = false) {
+    this.connection = this.customConnection.refreshConnection(useDefault);
   }
 }
