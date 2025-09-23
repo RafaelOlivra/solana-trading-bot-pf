@@ -1,6 +1,6 @@
 import { Connection, Commitment, ConnectionConfig } from '@solana/web3.js';
 import { COMMITMENT_LEVEL, RPC_ENDPOINT, RPC_WEBSOCKET_ENDPOINT } from './constants';
-import { logger } from './helpers';
+import { logger } from './';
 
 type ConnectionArgs = {
   rpcEndpoint: string;
