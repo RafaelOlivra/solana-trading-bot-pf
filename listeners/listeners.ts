@@ -6,7 +6,11 @@ import {
   Token,
   ProgramId,
 } from '@raydium-io/raydium-sdk';
-import { DEVNET_PROGRAM_ID as DEVNET_PROGRAM_ID_V2, CpmmPoolInfoLayout } from '@raydium-io/raydium-sdk-v2';
+import {
+  DEVNET_PROGRAM_ID as DEVNET_PROGRAM_ID_V2,
+  ALL_PROGRAM_ID,
+  CpmmPoolInfoLayout,
+} from '@raydium-io/raydium-sdk-v2';
 import bs58 from 'bs58';
 import { PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
@@ -25,7 +29,11 @@ export type ListenerConfig = {
 export type MinimalCPMMPoolState = {
   accountId: PublicKey;
   baseMint: PublicKey;
+  baseDecimal: number;
+  baseVault: PublicKey;
   quoteMint: PublicKey;
+  quoteDecimal: number;
+  quoteVault: PublicKey;
   lpMint: PublicKey;
   poolOpenTime: BN;
   isCpmm: boolean;
@@ -36,6 +44,7 @@ export class Listeners extends EventEmitter {
   private connection: CustomConnection['connection'];
 
   private MARKET_PROGRAM_ID: ProgramId = MAINNET_PROGRAM_ID;
+  private MARKET_PROGRAM_ID_V2 = ALL_PROGRAM_ID;
   private CONFIG: ListenerConfig | null = null;
 
   constructor(private readonly customConnection: CustomConnection) {
@@ -58,6 +67,7 @@ export class Listeners extends EventEmitter {
 
     this.CONFIG = config;
     this.MARKET_PROGRAM_ID = config.network === 'devnet' ? DEVNET_PROGRAM_ID : MAINNET_PROGRAM_ID;
+    this.MARKET_PROGRAM_ID_V2 = config.network === 'devnet' ? DEVNET_PROGRAM_ID_V2 : ALL_PROGRAM_ID;
 
     // Subscriptions
 
@@ -69,10 +79,8 @@ export class Listeners extends EventEmitter {
     const raydiumSubscription = await this.subscribeToRaydiumPools(config);
     this.subscriptions.push(raydiumSubscription);
 
-    if (config.network === 'devnet' && USE_SNIPE_LIST) {
-      const cpmmSubscription = await this.subscribeToCpmmPools(config);
-      this.subscriptions.push(cpmmSubscription);
-    }
+    // const cpmmSubscription = await this.subscribeToCpmmPools(config);
+    // this.subscriptions.push(cpmmSubscription);
 
     if (config.autoSell) {
       const walletSubscription = await this.subscribeToWalletChanges(config);
@@ -81,6 +89,7 @@ export class Listeners extends EventEmitter {
   }
 
   private async subscribeToOpenBookMarkets(config: { quoteToken: Token }) {
+    logger.info('Subscribing to OpenBook markets...');
     return this.connection.onProgramAccountChange(
       this.MARKET_PROGRAM_ID.OPENBOOK_MARKET,
       async (updatedAccountInfo) => {
@@ -100,6 +109,7 @@ export class Listeners extends EventEmitter {
   }
 
   private async subscribeToRaydiumPools(config: { quoteToken: Token }) {
+    logger.info('Subscribing to Raydium V4 pools...');
     return this.connection.onProgramAccountChange(
       this.MARKET_PROGRAM_ID.AmmV4,
       async (updatedAccountInfo) => {
@@ -131,10 +141,10 @@ export class Listeners extends EventEmitter {
   }
 
   private async subscribeToCpmmPools(config: { quoteToken: Token }) {
-    logger.info('Subscribing to CPMM pools (Devnet only)...');
+    logger.info('Subscribing to CPMM pools...');
 
     return this.connection.onProgramAccountChange(
-      DEVNET_PROGRAM_ID_V2.CREATE_CPMM_POOL_PROGRAM,
+      this.MARKET_PROGRAM_ID_V2.CREATE_CPMM_POOL_PROGRAM,
       async (updatedAccountInfo) => {
         const poolId = updatedAccountInfo.accountId.toBase58();
         logger.trace(`CPMM pool update: ${poolId}`);
@@ -143,9 +153,14 @@ export class Listeners extends EventEmitter {
           const decoded = CpmmPoolInfoLayout.decode(updatedAccountInfo.accountInfo.data);
 
           const poolState: MinimalCPMMPoolState = {
+            ...decoded,
             accountId: updatedAccountInfo.accountId,
-            baseMint: decoded.mintA,
-            quoteMint: decoded.mintB,
+            baseMint: decoded.mintB,
+            baseDecimal: decoded.mintDecimalB,
+            quoteMint: decoded.mintA,
+            quoteDecimal: decoded.mintDecimalA,
+            quoteVault: decoded.vaultA,
+            baseVault: decoded.vaultB,
             lpMint: decoded.mintLp,
             poolOpenTime: decoded.openTime,
             isCpmm: true,
@@ -163,6 +178,7 @@ export class Listeners extends EventEmitter {
   }
 
   private async subscribeToWalletChanges(config: { walletPublicKey: PublicKey }) {
+    logger.info('Subscribing to wallet token changes...');
     return this.connection.onProgramAccountChange(
       TOKEN_PROGRAM_ID,
       async (updatedAccountInfo) => {
